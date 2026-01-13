@@ -7,10 +7,11 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4.1-38B2AC?style=flat-square&logo=tailwindcss)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 **Professional photo capture and editing application with a premium Lightroom-inspired interface**
 
-[Live Demo](#) · [Features](#-features) · [Getting Started](#-getting-started) · [Keyboard Shortcuts](#-keyboard-shortcuts)
+[Live Demo](#) · [Features](#-features) · [Getting Started](#-getting-started) · [Roadmap](#-roadmap)
 
 </div>
 
@@ -99,6 +100,67 @@ npm run preview
 
 ---
 
+## 🗺️ Roadmap
+
+### Phase 1 - Core Foundation ✅ `v1.0.0`
+- [x] Camera capture with live preview
+- [x] Basic image adjustments (Exposure, Contrast, Highlights, Shadows)
+- [x] Color adjustments (Temperature, Tint, Vibrance, Saturation)
+- [x] Detail adjustments (Clarity, Sharpness, Noise Reduction)
+- [x] Real-time RGB histogram
+- [x] Grid overlays and zebra patterns
+- [x] Before/After comparison mode
+- [x] Glassmorphism premium UI
+
+### Phase 2 - Advanced Editing 🔄 `v1.1.0`
+- [ ] Crop & Rotate tools
+- [ ] HSL/Color panel (Hue, Saturation, Luminance per color)
+- [ ] Tone Curve editor
+- [ ] Vignette effect
+- [ ] Lens correction (Distortion, Chromatic Aberration)
+- [ ] Export with quality settings (JPEG, PNG, WebP)
+
+### Phase 3 - Presets & Profiles 📅 `v1.2.0`
+- [ ] Built-in preset library (Cinematic, Portrait, Landscape, B&W)
+- [ ] Custom preset creation and saving
+- [ ] Import/Export presets (.apex format)
+- [ ] One-click preset application
+- [ ] Preset preview on hover
+
+### Phase 4 - Layers & Masks 📅 `v1.3.0`
+- [ ] Non-destructive layer system
+- [ ] Adjustment layers
+- [ ] Gradient masks
+- [ ] Radial masks
+- [ ] Brush masks with feathering
+- [ ] Luminosity masks
+
+### Phase 5 - AI-Powered Features 📅 `v2.0.0`
+- [ ] AI Auto-enhance (one-click optimization)
+- [ ] AI Sky replacement
+- [ ] AI Portrait retouching (skin smoothing, eye enhancement)
+- [ ] AI Background removal
+- [ ] AI Noise reduction (deep learning)
+- [ ] AI Upscaling (super resolution)
+
+### Phase 6 - Collaboration & Cloud 📅 `v2.1.0`
+- [ ] Cloud storage integration (Google Drive, Dropbox)
+- [ ] Project sharing and collaboration
+- [ ] Version history and snapshots
+- [ ] Multi-device sync
+- [ ] Real-time collaborative editing
+
+### Phase 7 - Pro Features 📅 `v3.0.0`
+- [ ] RAW file support (CR2, NEF, ARW, DNG)
+- [ ] Batch processing
+- [ ] Watermark and branding tools
+- [ ] Print layout designer
+- [ ] Video frame extraction
+- [ ] Plugin/Extension system
+- [ ] Mobile companion app (PWA)
+
+---
+
 ## 🛠️ Tech Stack
 
 - **Framework:** React 19 with TypeScript
@@ -164,7 +226,31 @@ apex-photo-studio/
 
 ## 📄 License
 
-MIT License © 2026 Julian Javier Soto
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Copyright (c) 2026 Julian Javier Soto
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
