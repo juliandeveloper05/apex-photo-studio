@@ -31,10 +31,46 @@ export function Camera() {
   
   const { camera, setCameraSettings, setOriginalImage, setUIState } = useImageStore();
   
+  // Helper to get specific error messages
+  const getCameraErrorMessage = (err: unknown): string => {
+    if (err instanceof Error) {
+      const name = err.name;
+      const message = err.message.toLowerCase();
+      
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        return '🚫 Camera permission denied. Click the lock icon in your browser\'s address bar and allow camera access, then refresh the page.';
+      }
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        return '📷 No camera found. Please connect a camera and try again.';
+      }
+      if (name === 'NotReadableError' || name === 'TrackStartError') {
+        return '⚠️ Camera is in use by another application. Close other apps using the camera and try again.';
+      }
+      if (name === 'OverconstrainedError') {
+        return '⚙️ Camera doesn\'t support the requested resolution. Try a lower resolution in settings.';
+      }
+      if (name === 'TypeError' || message.includes('undefined')) {
+        return '🌐 Camera API not available. Make sure you\'re using HTTPS and a modern browser.';
+      }
+      if (name === 'AbortError') {
+        return '❌ Camera access was interrupted. Please try again.';
+      }
+      
+      return `❓ Camera error: ${err.message}`;
+    }
+    return '❓ Unknown camera error. Please try again.';
+  };
+
   // Enumerate cameras
   useEffect(() => {
     async function getDevices() {
       try {
+        // Check if mediaDevices API is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError('🌐 Camera API not available. Make sure you\'re using HTTPS and a modern browser (Chrome, Firefox, Edge, Safari).');
+          return;
+        }
+        
         // Request permissions first
         await navigator.mediaDevices.getUserMedia({ video: true });
         
@@ -46,13 +82,18 @@ export function Camera() {
             label: d.label || `Camera ${d.deviceId.slice(0, 5)}`,
           }));
         
+        if (videoDevices.length === 0) {
+          setError('📷 No camera found. Please connect a camera and try again.');
+          return;
+        }
+        
         setDevices(videoDevices);
         
         if (videoDevices.length > 0 && !camera.deviceId) {
           setCameraSettings({ deviceId: videoDevices[0].deviceId });
         }
-      } catch {
-        setError('Camera access denied. Please allow camera permissions.');
+      } catch (err) {
+        setError(getCameraErrorMessage(err));
       }
     }
     
@@ -106,9 +147,9 @@ export function Camera() {
         setIsStreaming(true);
         setError(null);
       }
-    } catch {
-      console.error('Failed to start camera');
-      setError('Failed to access camera');
+    } catch (err) {
+      console.error('Failed to start camera:', err);
+      setError(getCameraErrorMessage(err));
       setIsStreaming(false);
     }
   };
