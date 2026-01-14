@@ -3,10 +3,22 @@
  * 
  * Main entry point for all image processing operations.
  * Orchestrates the adjustment pipeline and manages processing state.
+ * 
+ * Pipeline Order:
+ * 1. Lens Correction (distortion, CA)
+ * 2. Temperature & Tint
+ * 3. Exposure & Contrast
+ * 4. Highlights/Shadows/Whites/Blacks
+ * 5. Curves
+ * 6. HSL per-color
+ * 7. Vibrance & Saturation
+ * 8. Split Toning
+ * 9. Effects (Vignette, Dehaze)
+ * 10. Grain (last)
  */
 
-import type { AdjustmentSettings, BasicAdjustments, ColorAdjustments } from '@/types';
-import { clamp, normalizeRgb, denormalizeRgb } from '@/utils/colorspace';
+import type { AdjustmentSettings } from '@/types';
+import { clamp, normalizeRgb, denormalizeRgb, getLuminance } from '@/utils/colorspace';
 import { 
   adjustHighlights, 
   adjustShadows, 
@@ -15,7 +27,17 @@ import {
   adjustTemperature,
   adjustTint,
   adjustVibrance,
-  adjustSaturation 
+  adjustSaturation,
+  applyHSLAdjustments,
+  applyCurveAdjustments,
+  calculateVignette,
+  applyVignette,
+  applyDehaze,
+  applyGrain,
+  applySplitToning,
+  correctDistortion,
+  getChromaticAberrationFactors,
+  sampleBilinear,
 } from './adjustments';
 
 /**
@@ -28,13 +50,13 @@ export function cloneImageData(source: ImageData): ImageData {
 }
 
 /**
- * Process a single pixel with all basic adjustments
+ * Process a single pixel with all basic adjustments (without position-dependent effects)
  */
 function processPixel(
   r: number, g: number, b: number,
-  basic: BasicAdjustments,
-  color: ColorAdjustments
+  settings: AdjustmentSettings
 ): { r: number; g: number; b: number } {
+  const { basic, color, hsl, curves, effects, splitToning } = settings;
   let rgb = normalizeRgb(r, g, b);
   
   // 1. Temperature
@@ -67,36 +89,116 @@ function processPixel(
   rgb = adjustWhites(rgb, basic.whites);
   rgb = adjustBlacks(rgb, basic.blacks);
   
-  // 6. Vibrance & Saturation
+  // 6. Curves
+  rgb = applyCurveAdjustments(rgb, curves);
+  
+  // 7. HSL per-color
+  rgb = applyHSLAdjustments(rgb, hsl);
+  
+  // 8. Vibrance & Saturation
   rgb = adjustVibrance(rgb, color.vibrance);
   rgb = adjustSaturation(rgb, color.saturation);
+  
+  // 9. Split Toning
+  rgb = applySplitToning(rgb, splitToning);
+  
+  // 10. Dehaze
+  rgb = applyDehaze(rgb, effects.dehaze);
   
   return denormalizeRgb(rgb);
 }
 
 /**
- * Process entire image with adjustments
+ * Process entire image with all adjustments
  */
 export function processImage(
   source: ImageData,
   settings: AdjustmentSettings
 ): ImageData {
-  const { data, width, height } = source;
-  const output = new ImageData(width, height);
-  const outData = output.data;
+  const { width, height, data } = source;
+  let output = new ImageData(width, height);
+  let outData = output.data;
   
-  const { basic, color } = settings;
+  const { effects, lensCorrection } = settings;
   
-  for (let i = 0; i < data.length; i += 4) {
-    const result = processPixel(
-      data[i], data[i + 1], data[i + 2],
-      basic, color
-    );
-    
-    outData[i] = result.r;
-    outData[i + 1] = result.g;
-    outData[i + 2] = result.b;
-    outData[i + 3] = data[i + 3];
+  // Check if lens correction is needed
+  const needsLensCorrection = 
+    lensCorrection.distortion !== 0 || 
+    lensCorrection.chromaticAberration.redCyan !== 0 ||
+    lensCorrection.chromaticAberration.blueYellow !== 0;
+  
+  // Pre-calculate CA factors
+  const caFactors = needsLensCorrection ? 
+    getChromaticAberrationFactors(
+      lensCorrection.chromaticAberration.redCyan,
+      lensCorrection.chromaticAberration.blueYellow
+    ) : { r: 1, g: 1, b: 1 };
+  
+  // Random seed for grain (changes each render for animation effect)
+  const grainSeed = Date.now() % 10000;
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      
+      let r: number, g: number, b: number;
+      
+      if (needsLensCorrection) {
+        // Normalize coordinates to -1 to 1
+        const nx = (x / width - 0.5) * 2;
+        const ny = (y / height - 0.5) * 2;
+        
+        // Apply distortion correction
+        const corrected = correctDistortion(nx, ny, lensCorrection.distortion);
+        
+        // Sample each channel with CA offset
+        const srcRX = ((corrected.x * caFactors.r) / 2 + 0.5) * width;
+        const srcRY = ((corrected.y * caFactors.r) / 2 + 0.5) * height;
+        const srcGX = ((corrected.x * caFactors.g) / 2 + 0.5) * width;
+        const srcGY = ((corrected.y * caFactors.g) / 2 + 0.5) * height;
+        const srcBX = ((corrected.x * caFactors.b) / 2 + 0.5) * width;
+        const srcBY = ((corrected.y * caFactors.b) / 2 + 0.5) * height;
+        
+        r = sampleBilinear(data, width, height, srcRX, srcRY, 0);
+        g = sampleBilinear(data, width, height, srcGX, srcGY, 1);
+        b = sampleBilinear(data, width, height, srcBX, srcBY, 2);
+      } else {
+        r = data[i];
+        g = data[i + 1];
+        b = data[i + 2];
+      }
+      
+      // Apply non-position-dependent adjustments
+      const result = processPixel(r, g, b, settings);
+      
+      // Convert to normalized for remaining adjustments
+      let rgb = normalizeRgb(result.r, result.g, result.b);
+      
+      // Apply vignette (position-dependent)
+      if (effects.vignetteAmount !== 0) {
+        const vignetteFactor = calculateVignette(x, y, width, height, effects);
+        const luminance = getLuminance(rgb);
+        rgb = applyVignette(rgb, luminance, vignetteFactor, effects.vignetteHighlightProtection);
+      }
+      
+      // Apply grain (position-dependent, last effect)
+      if (effects.grainAmount > 0) {
+        rgb = applyGrain(
+          rgb, x, y, 
+          effects.grainAmount, 
+          effects.grainSize,
+          effects.grainRoughness,
+          effects.grainMonochrome,
+          grainSeed
+        );
+      }
+      
+      const final = denormalizeRgb(rgb);
+      outData[i] = final.r;
+      outData[i + 1] = final.g;
+      outData[i + 2] = final.b;
+      outData[i + 3] = data[i + 3]; // Preserve alpha
+    }
   }
   
   return output;
@@ -104,53 +206,21 @@ export function processImage(
 
 /**
  * Process image in tiles for large images
+ * Note: This simple tiled version doesn't apply position-dependent effects like vignette correctly
+ * For full accuracy with all effects, use processImage instead
  */
 export function processImageTiled(
   source: ImageData,
   settings: AdjustmentSettings,
-  tileSize: number = 256,
+  _tileSize: number = 256,
   onProgress?: (progress: number) => void
 ): ImageData {
-  const { data, width, height } = source;
-  const output = new ImageData(width, height);
-  const outData = output.data;
-  
-  const { basic, color } = settings;
-  
-  const tilesX = Math.ceil(width / tileSize);
-  const tilesY = Math.ceil(height / tileSize);
-  const totalTiles = tilesX * tilesY;
-  let completedTiles = 0;
-  
-  for (let ty = 0; ty < tilesY; ty++) {
-    for (let tx = 0; tx < tilesX; tx++) {
-      const startX = tx * tileSize;
-      const startY = ty * tileSize;
-      const endX = Math.min(startX + tileSize, width);
-      const endY = Math.min(startY + tileSize, height);
-      
-      for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
-          const i = (y * width + x) * 4;
-          
-          const result = processPixel(
-            data[i], data[i + 1], data[i + 2],
-            basic, color
-          );
-          
-          outData[i] = result.r;
-          outData[i + 1] = result.g;
-          outData[i + 2] = result.b;
-          outData[i + 3] = data[i + 3];
-        }
-      }
-      
-      completedTiles++;
-      onProgress?.(completedTiles / totalTiles);
-    }
-  }
-  
-  return output;
+  // For now, delegate to the full processImage since we have position-dependent effects
+  // TODO: Implement proper tiled processing with vignette/grain coordinate tracking
+  onProgress?.(0);
+  const result = processImage(source, settings);
+  onProgress?.(1);
+  return result;
 }
 
 /**

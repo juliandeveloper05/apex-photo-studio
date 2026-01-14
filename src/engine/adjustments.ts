@@ -641,3 +641,530 @@ export function applyLUTs(
   
   return output;
 }
+
+// ============================================================================
+// HSL PER-COLOR ADJUSTMENTS
+// ============================================================================
+
+/**
+ * Color ranges in HSL hue degrees (0-360)
+ */
+const COLOR_RANGES = {
+  red: { center: 0, width: 30 },       // 345-15
+  orange: { center: 30, width: 15 },   // 15-45
+  yellow: { center: 60, width: 15 },   // 45-75
+  green: { center: 120, width: 45 },   // 75-165
+  cyan: { center: 180, width: 15 },    // 165-195
+  blue: { center: 225, width: 30 },    // 195-255
+  purple: { center: 270, width: 15 },  // 255-285
+  magenta: { center: 315, width: 30 }, // 285-345
+} as const;
+
+type ColorChannel = keyof typeof COLOR_RANGES;
+
+/**
+ * Calculate how much a hue value belongs to a specific color channel
+ * Uses smooth falloff for natural transitions
+ */
+function getColorWeight(hue: number, channel: ColorChannel): number {
+  const { center, width } = COLOR_RANGES[channel];
+  
+  // Handle wraparound for red (around 0/360)
+  let distance = Math.abs(hue - center);
+  if (distance > 180) {
+    distance = 360 - distance;
+  }
+  
+  if (distance > width) return 0;
+  
+  // Smooth gaussian-like falloff
+  const t = distance / width;
+  return Math.cos(t * Math.PI / 2); // Smooth cosine falloff
+}
+
+/**
+ * Check if hue is in skin tone range (orange to yellow-red)
+ * Used for skin protection in adjustments
+ */
+function isSkinTone(hue: number, saturation: number): boolean {
+  const inSkinHue = (hue >= 0 && hue <= 50) || (hue >= 320 && hue <= 360);
+  const lowSaturation = saturation < 0.6;
+  return inSkinHue && lowSaturation;
+}
+
+import type { HSLAdjustments, HSLChannel } from '@/types';
+
+/**
+ * Apply HSL adjustments per color channel
+ */
+export function applyHSLAdjustments(rgb: RGB, hsl_settings: HSLAdjustments): RGB {
+  const hsl = rgbToHsl(rgb);
+  
+  let hueShift = 0;
+  let satShift = 0;
+  let lumShift = 0;
+  let totalWeight = 0;
+  
+  // Calculate weighted adjustments from all channels
+  const channels: ColorChannel[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'magenta'];
+  
+  for (const channel of channels) {
+    const weight = getColorWeight(hsl.h, channel);
+    if (weight > 0) {
+      const settings = hsl_settings[channel] as HSLChannel;
+      
+      // Skin protection: reduce effect on skin tones
+      const skinFactor = isSkinTone(hsl.h, hsl.s) ? 0.3 : 1.0;
+      
+      hueShift += (settings.hue / 100) * 60 * weight * skinFactor; // Max ±60 degree shift
+      satShift += (settings.saturation / 100) * weight * skinFactor;
+      lumShift += (settings.luminance / 100) * 0.5 * weight * skinFactor;
+      totalWeight += weight;
+    }
+  }
+  
+  if (totalWeight === 0) return rgb;
+  
+  // Apply adjustments
+  let newHue = hsl.h + hueShift;
+  if (newHue < 0) newHue += 360;
+  if (newHue >= 360) newHue -= 360;
+  
+  const newSat = clamp(hsl.s + satShift * hsl.s, 0, 1);
+  const newLum = clamp(hsl.l + lumShift, 0, 1);
+  
+  return hslToRgb({ h: newHue, s: newSat, l: newLum });
+}
+
+// ============================================================================
+// TONE CURVE ADJUSTMENTS
+// ============================================================================
+
+import type { CurvePoint, CurveAdjustments } from '@/types';
+
+/**
+ * Monotonic cubic spline interpolation (Catmull-Rom style)
+ * Ensures smooth curves without overshooting
+ */
+function cubicInterpolate(points: CurvePoint[], x: number): number {
+  if (points.length < 2) return x;
+  if (x <= points[0].x) return points[0].y;
+  if (x >= points[points.length - 1].x) return points[points.length - 1].y;
+  
+  // Find segment
+  let i = 0;
+  for (i = 0; i < points.length - 1; i++) {
+    if (x >= points[i].x && x < points[i + 1].x) break;
+  }
+  
+  const p0 = points[Math.max(0, i - 1)];
+  const p1 = points[i];
+  const p2 = points[i + 1];
+  const p3 = points[Math.min(points.length - 1, i + 2)];
+  
+  // Normalized position in segment
+  const t = (x - p1.x) / (p2.x - p1.x);
+  const t2 = t * t;
+  const t3 = t2 * t;
+  
+  // Catmull-Rom spline
+  const y = 0.5 * (
+    (2 * p1.y) +
+    (-p0.y + p2.y) * t +
+    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+  );
+  
+  return clamp(y, 0, 255);
+}
+
+/**
+ * Create a 256-entry LUT from curve points
+ */
+export function createCurveLUT(points: CurvePoint[]): Uint8Array {
+  const lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    lut[i] = Math.round(cubicInterpolate(points, i));
+  }
+  return lut;
+}
+
+/**
+ * Apply curve adjustments to RGB
+ */
+export function applyCurveAdjustments(rgb: RGB, curves: CurveAdjustments): RGB {
+  // Check if any curves are non-default
+  const isDefault = (pts: CurvePoint[]) => 
+    pts.length === 2 && pts[0].x === 0 && pts[0].y === 0 && 
+    pts[1].x === 255 && pts[1].y === 255;
+  
+  if (isDefault(curves.rgb) && isDefault(curves.red) && 
+      isDefault(curves.green) && isDefault(curves.blue)) {
+    return rgb;
+  }
+  
+  // Apply channel curves first
+  let r = rgb.r * 255;
+  let g = rgb.g * 255;
+  let b = rgb.b * 255;
+  
+  if (!isDefault(curves.red)) {
+    r = cubicInterpolate(curves.red, r);
+  }
+  if (!isDefault(curves.green)) {
+    g = cubicInterpolate(curves.green, g);
+  }
+  if (!isDefault(curves.blue)) {
+    b = cubicInterpolate(curves.blue, b);
+  }
+  
+  // Apply RGB master curve
+  if (!isDefault(curves.rgb)) {
+    r = cubicInterpolate(curves.rgb, r);
+    g = cubicInterpolate(curves.rgb, g);
+    b = cubicInterpolate(curves.rgb, b);
+  }
+  
+  return { r: r / 255, g: g / 255, b: b / 255 };
+}
+
+// ============================================================================
+// VIGNETTE EFFECT
+// ============================================================================
+
+import type { EffectAdjustments } from '@/types';
+
+/**
+ * Calculate vignette factor for a pixel position
+ * 
+ * @param x - X coordinate (0 to width-1)
+ * @param y - Y coordinate (0 to height-1)
+ * @param width - Image width
+ * @param height - Image height
+ * @param effects - Effect settings
+ * @returns Vignette multiplier (0-1 for darkening, >1 for brightening)
+ */
+export function calculateVignette(
+  x: number, 
+  y: number, 
+  width: number, 
+  height: number,
+  effects: EffectAdjustments
+): number {
+  if (effects.vignetteAmount === 0) return 1;
+  
+  // Normalize coordinates to -1 to 1
+  const cx = (x / width - 0.5) * 2;
+  const cy = (y / height - 0.5) * 2;
+  
+  // Apply roundness (-1 = rectangular, +1 = circular)
+  const roundness = (effects.vignetteRoundness + 100) / 200;
+  const aspectRatio = width / height;
+  
+  // Calculate distance with roundness adjustment
+  let dx = cx;
+  let dy = cy;
+  
+  if (roundness < 0.5) {
+    // More rectangular - use max distance
+    const rectFactor = 1 - roundness * 2;
+    dx = Math.abs(cx);
+    dy = Math.abs(cy) * aspectRatio;
+    const maxDist = Math.max(dx, dy);
+    const euclidDist = Math.sqrt(dx * dx + dy * dy);
+    dx = maxDist * rectFactor + euclidDist * (1 - rectFactor);
+    dy = 0;
+  } else {
+    // More circular - use euclidean distance
+    dy *= aspectRatio;
+  }
+  
+  const distance = Math.sqrt(dx * dx + dy * dy) / Math.sqrt(2);
+  
+  // Apply midpoint and feather
+  const midpoint = effects.vignetteMidpoint / 100;
+  const feather = effects.vignetteFeather / 100;
+  
+  // Calculate vignette strength with smooth falloff
+  const start = midpoint - feather * 0.5;
+  const end = midpoint + feather * 0.5;
+  
+  let strength = 0;
+  if (distance >= end) {
+    strength = 1;
+  } else if (distance > start) {
+    const t = (distance - start) / (end - start);
+    strength = t * t * (3 - 2 * t); // Smoothstep
+  }
+  
+  // Convert amount to multiplier
+  const amount = effects.vignetteAmount / 100;
+  
+  if (amount < 0) {
+    // Brighten edges
+    return 1 + strength * Math.abs(amount);
+  } else {
+    // Darken edges
+    return 1 - strength * amount;
+  }
+}
+
+/**
+ * Apply vignette to a pixel
+ */
+export function applyVignette(
+  rgb: RGB, 
+  luminance: number,
+  vignetteFactor: number,
+  highlightProtection: number
+): RGB {
+  if (vignetteFactor === 1) return rgb;
+  
+  // Highlight protection: reduce darkening on bright areas
+  let factor = vignetteFactor;
+  if (vignetteFactor < 1 && highlightProtection > 0) {
+    const protection = (highlightProtection / 100) * luminance;
+    factor = vignetteFactor + (1 - vignetteFactor) * protection;
+  }
+  
+  return {
+    r: clamp(rgb.r * factor, 0, 1),
+    g: clamp(rgb.g * factor, 0, 1),
+    b: clamp(rgb.b * factor, 0, 1),
+  };
+}
+
+// ============================================================================
+// FILM GRAIN
+// ============================================================================
+
+/**
+ * Generate noise value for grain effect
+ * Uses simple pseudo-random based on position
+ */
+function grainNoise(x: number, y: number, seed: number): number {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+/**
+ * Apply film grain to RGB
+ */
+export function applyGrain(
+  rgb: RGB,
+  x: number,
+  y: number,
+  amount: number,
+  size: number,
+  roughness: number,
+  monochrome: boolean,
+  seed: number
+): RGB {
+  if (amount === 0) return rgb;
+  
+  // Scale position based on grain size (larger size = sparser grain)
+  const scale = 1 + (size / 100) * 2;
+  const sx = Math.floor(x / scale);
+  const sy = Math.floor(y / scale);
+  
+  const intensity = amount / 100;
+  const rough = 1 + (roughness / 100) * 2;
+  
+  if (monochrome) {
+    // Same noise for all channels
+    const noise = (grainNoise(sx, sy, seed) - 0.5) * intensity * rough;
+    return {
+      r: clamp(rgb.r + noise, 0, 1),
+      g: clamp(rgb.g + noise, 0, 1),
+      b: clamp(rgb.b + noise, 0, 1),
+    };
+  } else {
+    // Different noise per channel
+    return {
+      r: clamp(rgb.r + (grainNoise(sx, sy, seed) - 0.5) * intensity * rough, 0, 1),
+      g: clamp(rgb.g + (grainNoise(sx, sy, seed + 1) - 0.5) * intensity * rough, 0, 1),
+      b: clamp(rgb.b + (grainNoise(sx, sy, seed + 2) - 0.5) * intensity * rough, 0, 1),
+    };
+  }
+}
+
+// ============================================================================
+// DEHAZE
+// ============================================================================
+
+/**
+ * Apply dehaze effect
+ * Increases local contrast and saturation to cut through haze
+ */
+export function applyDehaze(rgb: RGB, amount: number): RGB {
+  if (amount === 0) return rgb;
+  
+  const factor = amount / 100;
+  
+  // Dehaze works by:
+  // 1. Increasing contrast in midtones
+  // 2. Boosting saturation
+  // 3. Darkening the atmospheric light (lifting blacks)
+  
+  const hsl = rgbToHsl(rgb);
+  
+  if (factor > 0) {
+    // Remove haze: increase contrast and saturation
+    const contrastBoost = 1 + factor * 0.3;
+    const satBoost = 1 + factor * 0.2;
+    
+    hsl.l = clamp((hsl.l - 0.5) * contrastBoost + 0.5, 0, 1);
+    hsl.s = clamp(hsl.s * satBoost, 0, 1);
+  } else {
+    // Add haze: reduce contrast and saturation
+    const contrastReduce = 1 + factor * 0.3;
+    const satReduce = 1 + factor * 0.2;
+    
+    hsl.l = clamp((hsl.l - 0.5) * contrastReduce + 0.5 + Math.abs(factor) * 0.1, 0, 1);
+    hsl.s = clamp(hsl.s * satReduce, 0, 1);
+  }
+  
+  return hslToRgb(hsl);
+}
+
+// ============================================================================
+// SPLIT TONING
+// ============================================================================
+
+import type { SplitToningAdjustments } from '@/types';
+
+/**
+ * Apply split toning to RGB
+ * Colors shadows and highlights with different hues
+ */
+export function applySplitToning(rgb: RGB, settings: SplitToningAdjustments): RGB {
+  const { highlightHue, highlightSaturation, shadowHue, shadowSaturation, balance } = settings;
+  
+  if (highlightSaturation === 0 && shadowSaturation === 0) return rgb;
+  
+  const luminance = getLuminance(rgb);
+  
+  // Calculate shadow/highlight weights with balance
+  const balanceFactor = (balance + 100) / 200; // 0 to 1
+  const midpoint = 0.5 - (balanceFactor - 0.5) * 0.3;
+  
+  let shadowWeight = 0;
+  let highlightWeight = 0;
+  
+  if (luminance < midpoint) {
+    shadowWeight = 1 - luminance / midpoint;
+  } else {
+    highlightWeight = (luminance - midpoint) / (1 - midpoint);
+  }
+  
+  const hsl = rgbToHsl(rgb);
+  
+  // Blend in toning colors
+  if (shadowWeight > 0 && shadowSaturation > 0) {
+    const strength = shadowWeight * (shadowSaturation / 100) * 0.3;
+    hsl.h = hsl.h * (1 - strength) + shadowHue * strength;
+    hsl.s = clamp(hsl.s + strength * 0.2, 0, 1);
+  }
+  
+  if (highlightWeight > 0 && highlightSaturation > 0) {
+    const strength = highlightWeight * (highlightSaturation / 100) * 0.3;
+    hsl.h = hsl.h * (1 - strength) + highlightHue * strength;
+    hsl.s = clamp(hsl.s + strength * 0.2, 0, 1);
+  }
+  
+  // Normalize hue
+  if (hsl.h < 0) hsl.h += 360;
+  if (hsl.h >= 360) hsl.h -= 360;
+  
+  return hslToRgb(hsl);
+}
+
+// ============================================================================
+// LENS CORRECTION
+// ============================================================================
+
+/**
+ * Calculate distortion-corrected coordinates
+ * Uses Brown-Conrady radial distortion model
+ * 
+ * @param x - X coordinate (normalized -1 to 1)
+ * @param y - Y coordinate (normalized -1 to 1)
+ * @param amount - Distortion amount (-100 to +100)
+ * @returns Corrected coordinates
+ */
+export function correctDistortion(
+  x: number, 
+  y: number, 
+  amount: number
+): { x: number; y: number } {
+  if (amount === 0) return { x, y };
+  
+  // Convert amount to distortion coefficient
+  // Positive = barrel distortion correction (pincushion transform)
+  // Negative = pincushion distortion correction (barrel transform)
+  const k = amount / 500; // Scale to reasonable range
+  
+  const r2 = x * x + y * y;
+  const factor = 1 + k * r2;
+  
+  return {
+    x: x * factor,
+    y: y * factor,
+  };
+}
+
+/**
+ * Calculate chromatic aberration correction offsets
+ * Returns separate scale factors for each channel
+ * 
+ * @param redCyan - Red/Cyan fringe correction (-100 to +100)
+ * @param blueYellow - Blue/Yellow fringe correction (-100 to +100)
+ * @returns Scale factors for R, G, B channels
+ */
+export function getChromaticAberrationFactors(
+  redCyan: number,
+  blueYellow: number
+): { r: number; g: number; b: number } {
+  // CA correction works by scaling each channel differently
+  // Green is typically the reference (1.0)
+  const rcFactor = 1 + redCyan / 2000;
+  const byFactor = 1 + blueYellow / 2000;
+  
+  return {
+    r: 1 + (rcFactor - 1),      // Red shifts opposite to cyan
+    g: 1,                        // Green is reference
+    b: 1 + (byFactor - 1),      // Blue shifts opposite to yellow
+  };
+}
+
+/**
+ * Sample image with bilinear interpolation at fractional coordinates
+ */
+export function sampleBilinear(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  channel: number
+): number {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const x1 = Math.min(x0 + 1, width - 1);
+  const y1 = Math.min(y0 + 1, height - 1);
+  
+  if (x0 < 0 || y0 < 0 || x0 >= width || y0 >= height) return 0;
+  
+  const fx = x - x0;
+  const fy = y - y0;
+  
+  const idx00 = (y0 * width + x0) * 4 + channel;
+  const idx10 = (y0 * width + x1) * 4 + channel;
+  const idx01 = (y1 * width + x0) * 4 + channel;
+  const idx11 = (y1 * width + x1) * 4 + channel;
+  
+  return (1 - fx) * (1 - fy) * data[idx00] +
+         fx * (1 - fy) * data[idx10] +
+         (1 - fx) * fy * data[idx01] +
+         fx * fy * data[idx11];
+}

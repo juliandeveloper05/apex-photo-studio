@@ -8,6 +8,7 @@
  * - Comparison mode
  * - Grid and zebra overlays
  * - Undo/Redo
+ * - Export functionality
  */
 
 import { 
@@ -23,14 +24,17 @@ import {
   Redo,
   SplitSquareVertical,
   Upload,
-  Aperture
+  Aperture,
+  Download
 } from 'lucide-react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useImageStore } from '@/hooks/useImageStore';
 import type { GridType } from '@/types';
+import { ExportModal } from './ExportModal';
 
 export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const { 
     ui, setUIState, 
     image, setOriginalImage,
@@ -87,187 +91,206 @@ export function Toolbar() {
   };
   
   return (
-    <header className="h-14 flex items-center justify-between px-4 glass-panel border-b border-[var(--apex-border)]">
-      {/* Left section - Logo & Mode toggle */}
-      <div className="flex items-center gap-4">
-        {/* Logo */}
-        <div className="flex items-center gap-2 mr-2">
-          <div className="relative">
-            <Aperture className="w-6 h-6 text-[var(--apex-accent)] glow-accent" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight gradient-text hidden sm:block">
-            APEX
-          </span>
-        </div>
-        
-        {/* Divider */}
-        <div className="w-px h-6 bg-[var(--apex-border)]" />
-        
-        {/* Mode Toggle */}
-        <div className="flex p-1 rounded-lg bg-[var(--apex-bg-dark)] border border-[var(--apex-border)]">
-          <button
-            onClick={() => setUIState({ mode: 'camera' })}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-              ui.mode === 'camera' 
-                ? 'bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] text-white shadow-lg shadow-[var(--apex-accent-glow)]' 
-                : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
-            }`}
-          >
-            <Camera className="w-4 h-4" />
-            <span className="hidden sm:inline">Camera</span>
-          </button>
-          <button
-            onClick={() => setUIState({ mode: 'editor' })}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-              ui.mode === 'editor' 
-                ? 'bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] text-white shadow-lg shadow-[var(--apex-accent-glow)]' 
-                : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
-            }`}
-          >
-            <Image className="w-4 h-4" />
-            <span className="hidden sm:inline">Editor</span>
-          </button>
-        </div>
-        
-        {/* Import Button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="btn-apex group"
-          title="Import Image"
-        >
-          <Upload className="w-4 h-4 group-hover:text-[var(--apex-accent)] transition-colors" />
-          <span className="hidden md:inline">Import</span>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-      </div>
-      
-      {/* Center section - View controls */}
-      {ui.mode === 'editor' && image.original && (
-        <div className="flex items-center gap-1 animate-fade-in-up">
-          {/* Undo/Redo */}
-          <div className="flex items-center gap-0.5 mr-2">
-            <button
-              onClick={() => undo()}
-              disabled={!canUndo()}
-              className="btn-icon disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => redo()}
-              disabled={!canRedo()}
-              className="btn-icon disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Redo (Ctrl+Y)"
-            >
-              <Redo className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <div className="w-px h-5 bg-[var(--apex-border)] mx-1" />
-          
-          {/* Zoom */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => handleZoom(-0.25)}
-              className="btn-icon"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-xs text-[var(--apex-text-muted)] w-12 text-center font-mono tabular-nums">
-              {Math.round(ui.zoom * 100)}%
+    <>
+      <header className="h-14 flex items-center justify-between px-4 glass-panel border-b border-[var(--apex-border)]">
+        {/* Left section - Logo & Mode toggle */}
+        <div className="flex items-center gap-4">
+          {/* Logo */}
+          <div className="flex items-center gap-2 mr-2">
+            <div className="relative">
+              <Aperture className="w-6 h-6 text-[var(--apex-accent)] glow-accent" />
+            </div>
+            <span className="text-lg font-semibold tracking-tight gradient-text hidden sm:block">
+              APEX
             </span>
+          </div>
+          
+          {/* Divider */}
+          <div className="w-px h-6 bg-[var(--apex-border)]" />
+          
+          {/* Mode Toggle */}
+          <div className="flex p-1 rounded-lg bg-[var(--apex-bg-dark)] border border-[var(--apex-border)]">
             <button
-              onClick={() => handleZoom(0.25)}
-              className="btn-icon"
-              title="Zoom In"
+              onClick={() => setUIState({ mode: 'camera' })}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                ui.mode === 'camera' 
+                  ? 'bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] text-white shadow-lg shadow-[var(--apex-accent-glow)]' 
+                  : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
+              }`}
             >
-              <ZoomIn className="w-4 h-4" />
+              <Camera className="w-4 h-4" />
+              <span className="hidden sm:inline">Camera</span>
             </button>
             <button
-              onClick={handleFitToScreen}
-              className="btn-icon"
-              title="Fit to Screen"
+              onClick={() => setUIState({ mode: 'editor' })}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                ui.mode === 'editor' 
+                  ? 'bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] text-white shadow-lg shadow-[var(--apex-accent-glow)]' 
+                  : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
+              }`}
             >
-              <Maximize className="w-4 h-4" />
+              <Image className="w-4 h-4" />
+              <span className="hidden sm:inline">Editor</span>
             </button>
           </div>
           
-          <div className="w-px h-5 bg-[var(--apex-border)] mx-1" />
-          
-          {/* Comparison */}
+          {/* Import Button */}
           <button
-            onClick={() => setUIState({ 
-              comparisonMode: ui.comparisonMode === 'off' ? 'split-vertical' : 'off' 
-            })}
-            className={`btn-icon ${
-              ui.comparisonMode !== 'off' 
-                ? 'btn-icon-active' 
-                : ''
-            }`}
-            title="Before/After Comparison (\\)"
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-apex group"
+            title="Import Image"
           >
-            <SplitSquareVertical className="w-4 h-4" />
+            <Upload className="w-4 h-4 group-hover:text-[var(--apex-accent)] transition-colors" />
+            <span className="hidden md:inline">Import</span>
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
         </div>
-      )}
-      
-      {/* Right section - Overlays */}
-      <div className="flex items-center gap-1">
+        
+        {/* Center section - View controls */}
         {ui.mode === 'editor' && image.original && (
-          <>
-            {/* Grid */}
-            <button
-              onClick={toggleGrid}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md transition-all duration-200 ${
-                ui.gridType !== 'none' 
-                  ? 'bg-[var(--apex-accent-subtle)] text-[var(--apex-accent)] border border-[var(--apex-border-accent)]' 
-                  : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
-              }`}
-              title={gridLabels[ui.gridType]}
-            >
-              <Grid3X3 className="w-4 h-4" />
-              <span className="hidden lg:inline text-xs font-medium">
-                {ui.gridType !== 'none' ? gridLabels[ui.gridType] : 'Grid'}
+          <div className="flex items-center gap-1 animate-fade-in-up">
+            {/* Undo/Redo */}
+            <div className="flex items-center gap-0.5 mr-2">
+              <button
+                onClick={() => undo()}
+                disabled={!canUndo()}
+                className="btn-icon disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => redo()}
+                disabled={!canRedo()}
+                className="btn-icon disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="w-px h-5 bg-[var(--apex-border)] mx-1" />
+            
+            {/* Zoom */}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => handleZoom(-0.25)}
+                className="btn-icon"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-[var(--apex-text-muted)] w-12 text-center font-mono tabular-nums">
+                {Math.round(ui.zoom * 100)}%
               </span>
-            </button>
+              <button
+                onClick={() => handleZoom(0.25)}
+                className="btn-icon"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleFitToScreen}
+                className="btn-icon"
+                title="Fit to Screen"
+              >
+                <Maximize className="w-4 h-4" />
+              </button>
+            </div>
             
-            {/* Zebras */}
-            <button
-              onClick={() => setUIState({ showZebras: !ui.showZebras })}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md transition-all duration-200 ${
-                ui.showZebras 
-                  ? 'bg-[rgba(245,158,11,0.15)] text-[var(--apex-amber)] border border-[rgba(245,158,11,0.4)]' 
-                  : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
-              }`}
-              title="Show Clipping (Zebras) [Z]"
-            >
-              <Eye className="w-4 h-4" />
-              <span className="hidden lg:inline text-xs font-medium">Zebras</span>
-            </button>
+            <div className="w-px h-5 bg-[var(--apex-border)] mx-1" />
             
-            {/* Histogram toggle */}
+            {/* Comparison */}
             <button
-              onClick={() => setUIState({ showHistogram: !ui.showHistogram })}
+              onClick={() => setUIState({ 
+                comparisonMode: ui.comparisonMode === 'off' ? 'split-vertical' : 'off' 
+              })}
               className={`btn-icon ${
-                ui.showHistogram 
+                ui.comparisonMode !== 'off' 
                   ? 'btn-icon-active' 
                   : ''
               }`}
-              title="Toggle Histogram [H]"
+              title="Before/After Comparison (\\)"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <SplitSquareVertical className="w-4 h-4" />
             </button>
-          </>
+          </div>
         )}
-      </div>
-    </header>
+        
+        {/* Right section - Overlays & Export */}
+        <div className="flex items-center gap-1">
+          {ui.mode === 'editor' && image.original && (
+            <>
+              {/* Grid */}
+              <button
+                onClick={toggleGrid}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md transition-all duration-200 ${
+                  ui.gridType !== 'none' 
+                    ? 'bg-[var(--apex-accent-subtle)] text-[var(--apex-accent)] border border-[var(--apex-border-accent)]' 
+                    : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
+                }`}
+                title={gridLabels[ui.gridType]}
+              >
+                <Grid3X3 className="w-4 h-4" />
+                <span className="hidden lg:inline text-xs font-medium">
+                  {ui.gridType !== 'none' ? gridLabels[ui.gridType] : 'Grid'}
+                </span>
+              </button>
+              
+              {/* Zebras */}
+              <button
+                onClick={() => setUIState({ showZebras: !ui.showZebras })}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md transition-all duration-200 ${
+                  ui.showZebras 
+                    ? 'bg-[rgba(245,158,11,0.15)] text-[var(--apex-amber)] border border-[rgba(245,158,11,0.4)]' 
+                    : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
+                }`}
+                title="Show Clipping (Zebras) [Z]"
+              >
+                <Eye className="w-4 h-4" />
+                <span className="hidden lg:inline text-xs font-medium">Zebras</span>
+              </button>
+              
+              {/* Histogram toggle */}
+              <button
+                onClick={() => setUIState({ showHistogram: !ui.showHistogram })}
+                className={`btn-icon ${
+                  ui.showHistogram 
+                    ? 'btn-icon-active' 
+                    : ''
+                }`}
+                title="Toggle Histogram [H]"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              
+              <div className="w-px h-5 bg-[var(--apex-border)] mx-1" />
+              
+              {/* Export Button */}
+              <button
+                onClick={() => setIsExportOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium
+                           bg-gradient-to-r from-cyan-500 to-blue-600 text-white 
+                           hover:opacity-90 transition-all shadow-lg shadow-cyan-500/25"
+                title="Export Image (Ctrl+Shift+E)"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden md:inline">Export</span>
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+      
+      {/* Export Modal */}
+      <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+    </>
   );
 }

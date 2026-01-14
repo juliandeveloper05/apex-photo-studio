@@ -101,6 +101,33 @@ export interface CurveAdjustments {
 }
 
 /**
+ * Transform adjustments (crop, rotation, flip)
+ */
+export interface TransformAdjustments {
+  crop: {
+    x: number;           // Top-left X (0-1 normalized)
+    y: number;           // Top-left Y (0-1 normalized)
+    width: number;       // Width (0-1 normalized)
+    height: number;      // Height (0-1 normalized)
+    aspectRatio: number | null; // Locked ratio or null for free
+  };
+  rotation: number;        // Degrees (-180 to 180)
+  flipHorizontal: boolean;
+  flipVertical: boolean;
+}
+
+/**
+ * Lens correction adjustments
+ */
+export interface LensCorrectionAdjustments {
+  distortion: number;        // -100 to +100 (barrel/pincushion)
+  chromaticAberration: {
+    redCyan: number;         // -100 to +100
+    blueYellow: number;      // -100 to +100
+  };
+}
+
+/**
  * Effect adjustments (vignette, grain, etc.)
  */
 export interface EffectAdjustments {
@@ -112,10 +139,16 @@ export interface EffectAdjustments {
   vignetteRoundness: number;
   /** Vignette feather (0 to 100) */
   vignetteFeather: number;
+  /** Vignette highlight protection (0 to 100) */
+  vignetteHighlightProtection: number;
   /** Film grain amount (0 to 100) */
   grainAmount: number;
   /** Film grain size (0 to 100) */
   grainSize: number;
+  /** Film grain roughness (0 to 100) */
+  grainRoughness: number;
+  /** Monochrome grain */
+  grainMonochrome: boolean;
   /** Dehaze strength (-100 to +100) */
   dehaze: number;
 }
@@ -142,6 +175,8 @@ export interface AdjustmentSettings {
   curves: CurveAdjustments;
   effects: EffectAdjustments;
   splitToning: SplitToningAdjustments;
+  transform: TransformAdjustments;
+  lensCorrection: LensCorrectionAdjustments;
 }
 
 // ============================================================================
@@ -397,8 +432,11 @@ export const DEFAULT_EFFECT_ADJUSTMENTS: EffectAdjustments = {
   vignetteMidpoint: 50,
   vignetteRoundness: 0,
   vignetteFeather: 50,
+  vignetteHighlightProtection: 0,
   grainAmount: 0,
   grainSize: 25,
+  grainRoughness: 50,
+  grainMonochrome: true,
   dehaze: 0,
 };
 
@@ -410,6 +448,18 @@ export const DEFAULT_SPLIT_TONING: SplitToningAdjustments = {
   balance: 0,
 };
 
+export const DEFAULT_TRANSFORM_ADJUSTMENTS: TransformAdjustments = {
+  crop: { x: 0, y: 0, width: 1, height: 1, aspectRatio: null },
+  rotation: 0,
+  flipHorizontal: false,
+  flipVertical: false,
+};
+
+export const DEFAULT_LENS_CORRECTION: LensCorrectionAdjustments = {
+  distortion: 0,
+  chromaticAberration: { redCyan: 0, blueYellow: 0 },
+};
+
 export const DEFAULT_ADJUSTMENT_SETTINGS: AdjustmentSettings = {
   basic: DEFAULT_BASIC_ADJUSTMENTS,
   color: DEFAULT_COLOR_ADJUSTMENTS,
@@ -418,6 +468,8 @@ export const DEFAULT_ADJUSTMENT_SETTINGS: AdjustmentSettings = {
   curves: DEFAULT_CURVE_ADJUSTMENTS,
   effects: DEFAULT_EFFECT_ADJUSTMENTS,
   splitToning: DEFAULT_SPLIT_TONING,
+  transform: DEFAULT_TRANSFORM_ADJUSTMENTS,
+  lensCorrection: DEFAULT_LENS_CORRECTION,
 };
 
 export const DEFAULT_CAMERA_SETTINGS: CameraSettings = {

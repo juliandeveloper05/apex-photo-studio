@@ -11,6 +11,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { ChevronDown, RotateCcw, Sun, Palette, Sparkles } from 'lucide-react';
 import { useImageStore } from '@/hooks/useImageStore';
+import { HSLPanel } from './HSLPanel';
+import { ToneCurveEditor } from './ToneCurveEditor';
+import { EffectsPanel } from './EffectsPanel';
+import { LensCorrectionPanel } from './LensCorrectionPanel';
 
 interface SliderProps {
   label: string;
@@ -362,6 +366,46 @@ export function AdjustmentsPanel() {
           onChange={v => updateAdjustment('detail', 'noiseReduction', v)}
           onChangeEnd={handleChangeEnd}
         />
+      </Section>
+      
+      {/* HSL/Color Panel */}
+      <Section 
+        title="HSL / Color" 
+        icon={<Palette className="w-4 h-4" />}
+        isOpen={openSections.hsl ?? false}
+        onToggle={() => toggleSection('hsl')}
+      >
+        <HSLPanel />
+      </Section>
+      
+      {/* Tone Curve */}
+      <Section 
+        title="Tone Curve" 
+        icon={<Sparkles className="w-4 h-4" />}
+        isOpen={openSections.curves ?? false}
+        onToggle={() => toggleSection('curves')}
+      >
+        <ToneCurveEditor />
+      </Section>
+      
+      {/* Effects */}
+      <Section 
+        title="Effects" 
+        icon={<Sparkles className="w-4 h-4" />}
+        isOpen={openSections.effects ?? false}
+        onToggle={() => toggleSection('effects')}
+      >
+        <EffectsPanel />
+      </Section>
+      
+      {/* Lens Correction */}
+      <Section 
+        title="Lens Correction" 
+        icon={<Sparkles className="w-4 h-4" />}
+        isOpen={openSections.lens ?? false}
+        onToggle={() => toggleSection('lens')}
+      >
+        <LensCorrectionPanel />
       </Section>
     </div>
   );

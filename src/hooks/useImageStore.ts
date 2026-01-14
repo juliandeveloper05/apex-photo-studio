@@ -104,8 +104,11 @@ const defaultAdjustments: AdjustmentSettings = {
     vignetteMidpoint: 50,
     vignetteRoundness: 0,
     vignetteFeather: 50,
+    vignetteHighlightProtection: 0,
     grainAmount: 0,
     grainSize: 25,
+    grainRoughness: 50,
+    grainMonochrome: true,
     dehaze: 0,
   },
   splitToning: {
@@ -114,6 +117,16 @@ const defaultAdjustments: AdjustmentSettings = {
     shadowHue: 0,
     shadowSaturation: 0,
     balance: 0,
+  },
+  transform: {
+    crop: { x: 0, y: 0, width: 1, height: 1, aspectRatio: null },
+    rotation: 0,
+    flipHorizontal: false,
+    flipVertical: false,
+  },
+  lensCorrection: {
+    distortion: 0,
+    chromaticAberration: { redCyan: 0, blueYellow: 0 },
   },
 };
 
@@ -190,6 +203,26 @@ export const useImageStore = create<ImageStore>()(
           basic: { ...state.adjustments.basic, ...newAdjustments.basic },
           color: { ...state.adjustments.color, ...newAdjustments.color },
           detail: { ...state.adjustments.detail, ...newAdjustments.detail },
+          hsl: { ...state.adjustments.hsl, ...newAdjustments.hsl },
+          curves: { ...state.adjustments.curves, ...newAdjustments.curves },
+          effects: { ...state.adjustments.effects, ...newAdjustments.effects },
+          splitToning: { ...state.adjustments.splitToning, ...newAdjustments.splitToning },
+          transform: { 
+            ...state.adjustments.transform, 
+            ...newAdjustments.transform,
+            crop: { 
+              ...state.adjustments.transform.crop, 
+              ...newAdjustments.transform?.crop 
+            },
+          },
+          lensCorrection: { 
+            ...state.adjustments.lensCorrection, 
+            ...newAdjustments.lensCorrection,
+            chromaticAberration: {
+              ...state.adjustments.lensCorrection.chromaticAberration,
+              ...newAdjustments.lensCorrection?.chromaticAberration,
+            },
+          },
         },
       }));
     },

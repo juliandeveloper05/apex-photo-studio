@@ -167,7 +167,7 @@ function App() {
           </div>
           
           <div className="text-[10px] text-gray-500 font-mono">
-            developed by julian vier soto with ❤️
+            developed by julian javier soto with ❤️
           </div>
         </footer>
       </div>
