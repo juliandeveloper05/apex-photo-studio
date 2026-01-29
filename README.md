@@ -73,6 +73,7 @@
 - RGB channel visualization
 - Clipping detection with animated indicators
 - Live updates during adjustments
+- **3D Visualization** support (Experimental)
 
 ---
 
@@ -198,6 +199,7 @@ npm run preview
 - **State Management:** Zustand
 - **Icons:** Lucide React
 - **Image Processing:** Custom Canvas-based engine
+- **3D Visualizations:** React Three Fiber / Three.js
 
 ---
 

@@ -1,0 +1,1008 @@
+{
+  "project": {
+    "name": "APEX Photo Studio",
+    "version": "v1.1.0",
+    "stack": {
+      "frontend": ["React 19", "TypeScript 5.3", "Vite 7"],
+      "styling": ["Tailwind CSS 4", "CSS Variables"],
+      "state": ["Zustand 4.5"],
+      "animation": ["Framer Motion 11", "React Three Fiber 8", "Three.js"],
+      "icons": ["Lucide React"]
+    }
+  },
+  "designTokens": {
+    "colors": {
+      "background": {
+        "primary": "#0a0a0f",
+        "secondary": "#12121a",
+        "tertiary": "#1a1a25",
+        "elevated": "#222230"
+      },
+      "surface": {
+        "glass": "rgba(26, 26, 37, 0.72)",
+        "glassHover": "rgba(34, 34, 48, 0.85)",
+        "glassActive": "rgba(42, 42, 58, 0.92)"
+      },
+      "accent": {
+        "primary": "#6366f1",
+        "primaryHover": "#818cf8",
+        "secondary": "#06b6d4",
+        "tertiary": "#f472b6",
+        "success": "#22c55e",
+        "warning": "#f59e0b",
+        "error": "#ef4444"
+      },
+      "text": {
+        "primary": "#f8fafc",
+        "secondary": "#94a3b8",
+        "tertiary": "#64748b",
+        "disabled": "#475569",
+        "inverse": "#0f172a"
+      },
+      "overlay": {
+        "scrim": "rgba(0, 0, 0, 0.65)",
+        "focus": "rgba(99, 102, 241, 0.25)",
+        "hover": "rgba(255, 255, 255, 0.05)"
+      },
+      "histogram": {
+        "shadows": "#3b82f6",
+        "midtones": "#22c55e",
+        "highlights": "#f59e0b"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "sans": "'Inter', system-ui, -apple-system, sans-serif",
+        "mono": "'JetBrains Mono', 'Fira Code', monospace",
+        "display": "'SF Pro Display', 'Inter', sans-serif"
+      },
+      "fontSize": {
+        "xs": "0.6875rem",
+        "sm": "0.8125rem",
+        "base": "0.9375rem",
+        "lg": "1.0625rem",
+        "xl": "1.25rem",
+        "2xl": "1.5rem",
+        "3xl": "2rem"
+      },
+      "fontWeight": {
+        "normal": 400,
+        "medium": 500,
+        "semibold": 600,
+        "bold": 700
+      },
+      "lineHeight": {
+        "tight": 1.2,
+        "normal": 1.5,
+        "relaxed": 1.75
+      },
+      "letterSpacing": {
+        "tight": "-0.02em",
+        "normal": "0",
+        "wide": "0.02em"
+      }
+    },
+    "spacing": {
+      "0": "0",
+      "1": "0.25rem",
+      "2": "0.5rem",
+      "3": "0.75rem",
+      "4": "1rem",
+      "5": "1.25rem",
+      "6": "1.5rem",
+      "8": "2rem",
+      "10": "2.5rem",
+      "12": "3rem",
+      "16": "4rem"
+    },
+    "borderRadius": {
+      "none": "0",
+      "sm": "0.375rem",
+      "md": "0.5rem",
+      "lg": "0.75rem",
+      "xl": "1rem",
+      "2xl": "1.5rem",
+      "full": "9999px"
+    },
+    "shadows": {
+      "sm": "0 1px 2px rgba(0, 0, 0, 0.3)",
+      "md": "0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3)",
+      "lg": "0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4)",
+      "xl": "0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4)",
+      "glow": "0 0 20px rgba(99, 102, 241, 0.35)",
+      "glowStrong": "0 0 30px rgba(99, 102, 241, 0.5)",
+      "rim": "inset 0 1px 1px rgba(255, 255, 255, 0.08)"
+    },
+    "blur": {
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "20px",
+      "2xl": "32px"
+    },
+    "zIndex": {
+      "base": 0,
+      "dropdown": 100,
+      "sticky": 200,
+      "fixed": 300,
+      "modal": 400,
+      "popover": 500,
+      "tooltip": 600,
+      "toast": 700,
+      "overlay": 800,
+      "countdown": 900
+    },
+    "transitions": {
+      "fast": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "normal": "250ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "slow": "350ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "spring": "500ms cubic-bezier(0.34, 1.56, 0.64, 1)"
+    }
+  },
+  "components": [
+    {
+      "name": "Camera",
+      "description": "Vista de cámara con preview en tiempo real, selector de resolución, temporizador y multi-cámara",
+      "props": [
+        { "name": "resolution", "type": "'4K' | '1080p' | '720p'", "default": "'1080p'", "description": "Resolución de captura" },
+        { "name": "timerDuration", "type": "number", "default": "0", "description": "Duración del temporizador en segundos (0 = off)" },
+        { "name": "activeCamera", "type": "string", "default": "'default'", "description": "ID de la cámara activa" },
+        { "name": "availableCameras", "type": "MediaDeviceInfo[]", "default": "[]", "description": "Lista de cámaras disponibles" },
+        { "name": "onCapture", "type": "(blob: Blob) => void", "required": true, "description": "Callback al capturar foto" },
+        { "name": "onResolutionChange", "type": "(res: string) => void", "optional": true, "description": "Callback al cambiar resolución" },
+        { "name": "onCameraSwitch", "type": "(deviceId: string) => void", "optional": true, "description": "Callback al cambiar cámara" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "capture", "signature": "() => Promise<Blob>", "description": "Captura foto manualmente" },
+          { "name": "startTimer", "signature": "(seconds: number) => void", "description": "Inicia temporizador" },
+          { "name": "cancelTimer", "signature": "() => void", "description": "Cancela temporizador activo" },
+          { "name": "switchCamera", "signature": "(deviceId: string) => Promise<void>", "description": "Cambia a cámara específica" }
+        ],
+        "events": [
+          { "name": "onCaptureStart", "description": "Emitido al iniciar captura" },
+          { "name": "onCaptureComplete", "description": "Emitido al completar captura" },
+          { "name": "onTimerTick", "description": "Emitido cada segundo del temporizador" },
+          { "name": "onError", "description": "Emitido en error de cámara" }
+        ]
+      },
+      "usage": "<Camera resolution=\"4K\" timerDuration={5} onCapture={handleCapture} />"
+    },
+    {
+      "name": "Editor",
+      "description": "Editor principal con preview, before/after split, zoom/pan y overlays",
+      "props": [
+        { "name": "imageSrc", "type": "string", "required": true, "description": "URL de la imagen a editar" },
+        { "name": "adjustments", "type": "AdjustmentState", "default": "defaultAdjustments", "description": "Estado actual de ajustes" },
+        { "name": "showSplit", "type": "boolean", "default": "false", "description": "Mostrar modo before/after" },
+        { "name": "splitPosition", "type": "number", "default": "50", "description": "Posición del split (0-100)" },
+        { "name": "zoom", "type": "number", "default": "1", "description": "Nivel de zoom (0.1-5)" },
+        { "name": "pan", "type": "{ x: number; y: number }", "default": "{ x: 0, y: 0 }", "description": "Posición de pan" },
+        { "name": "gridOverlay", "type": "'none' | 'rule-thirds' | 'golden' | 'grid'", "default": "'none'", "description": "Tipo de grid overlay" },
+        { "name": "showZebra", "type": "boolean", "default": "false", "description": "Mostrar zebra patterns" },
+        { "name": "onAdjustmentsChange", "type": "(adj: AdjustmentState) => void", "required": true, "description": "Callback al cambiar ajustes" },
+        { "name": "onZoomChange", "type": "(zoom: number) => void", "optional": true, "description": "Callback al cambiar zoom" },
+        { "name": "onPanChange", "type": "(pan: { x: number; y: number }) => void", "optional": true, "description": "Callback al cambiar pan" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "reset", "signature": "() => void", "description": "Resetea todos los ajustes" },
+          { "name": "export", "signature": "(format: string, quality: number) => Promise<Blob>", "description": "Exporta imagen procesada" },
+          { "name": "fitToScreen", "signature": "() => void", "description": "Ajusta zoom para ver imagen completa" },
+          { "name": "setSplitPosition", "signature": "(position: number) => void", "description": "Establece posición del split" }
+        ]
+      },
+      "usage": "<Editor imageSrc=\"/photo.jpg\" adjustments={adj} onAdjustmentsChange={setAdj} showSplit={true} />"
+    },
+    {
+      "name": "Toolbar",
+      "description": "Barra de herramientas principal con navegación Camera/Editor y acciones rápidas",
+      "props": [
+        { "name": "activeView", "type": "'camera' | 'editor'", "default": "'camera'", "description": "Vista activa actual" },
+        { "name": "onViewChange", "type": "(view: 'camera' | 'editor') => void", "required": true, "description": "Callback al cambiar vista" },
+        { "name": "actions", "type": "ToolbarAction[]", "default": "[]", "description": "Acciones adicionales" },
+        { "name": "showPresets", "type": "boolean", "default": "true", "description": "Mostrar quick presets" },
+        { "name": "canUndo", "type": "boolean", "default": "false", "description": "Habilitar undo" },
+        { "name": "canRedo", "type": "boolean", "default": "false", "description": "Habilitar redo" },
+        { "name": "onUndo", "type": "() => void", "optional": true, "description": "Callback undo" },
+        { "name": "onRedo", "type": "() => void", "optional": true, "description": "Callback redo" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "focus", "signature": "() => void", "description": "Enfoca el toolbar para navegación por teclado" }
+        ]
+      },
+      "usage": "<Toolbar activeView=\"editor\" onViewChange={setView} canUndo={true} onUndo={handleUndo} />"
+    },
+    {
+      "name": "AdjustmentsPanel",
+      "description": "Panel de ajustes con sliders para Exposure, Color, Detail y HSL de 8 canales",
+      "props": [
+        { "name": "category", "type": "'exposure' | 'color' | 'detail' | 'hsl'", "default": "'exposure'", "description": "Categoría activa" },
+        { "name": "values", "type": "AdjustmentValues", "required": true, "description": "Valores actuales de ajustes" },
+        { "name": "onChange", "type": "(key: string, value: number) => void", "required": true, "description": "Callback al cambiar valor" },
+        { "name": "onReset", "type": "(category?: string) => void", "optional": true, "description": "Callback al resetear" },
+        { "name": "histogramData", "type": "number[]", "optional": true, "description": "Datos del histograma" },
+        { "name": "showHistogram", "type": "boolean", "default": "true", "description": "Mostrar histograma" },
+        { "name": "expandedChannels", "type": "string[]", "default": "[]", "description": "Canales HSL expandidos" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "expandChannel", "signature": "(channel: string) => void", "description": "Expande canal HSL" },
+          { "name": "collapseChannel", "signature": "(channel: string) => void", "description": "Colapsa canal HSL" },
+          { "name": "snapToZero", "signature": "(key: string) => void", "description": "Fuerza valor a cero con snap" }
+        ]
+      },
+      "usage": "<AdjustmentsPanel category=\"exposure\" values={values} onChange={handleChange} />"
+    },
+    {
+      "name": "ToneCurveEditor",
+      "description": "Editor de curva de tonos con spline cúbico interactivo y histograma overlay",
+      "props": [
+        { "name": "curve", "type": "CurvePoint[]", "required": true, "description": "Puntos de la curva" },
+        { "name": "histogramData", "type": "number[]", "optional": true, "description": "Datos del histograma" },
+        { "name": "channel", "type": "'rgb' | 'red' | 'green' | 'blue'", "default": "'rgb'", "description": "Canal activo" },
+        { "name": "gridSize", "type": "number", "default": "4", "description": "Tamaño de la grid" },
+        { "name": "onCurveChange", "type": "(points: CurvePoint[]) => void", "required": true, "description": "Callback al cambiar curva" },
+        { "name": "onChannelChange", "type": "(channel: string) => void", "optional": true, "description": "Callback al cambiar canal" },
+        { "name": "presets", "type": "CurvePreset[]", "default": "[]", "description": "Presets disponibles" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "addPoint", "signature": "(x: number, y: number) => void", "description": "Agrega punto a la curva" },
+          { "name": "removePoint", "signature": "(index: number) => void", "description": "Elimina punto" },
+          { "name": "resetCurve", "signature": "() => void", "description": "Resetea a línea diagonal" },
+          { "name": "applyPreset", "signature": "(presetId: string) => void", "description": "Aplica preset" }
+        ]
+      },
+      "usage": "<ToneCurveEditor curve={curve} onCurveChange={setCurve} histogramData={histogram} />"
+    },
+    {
+      "name": "ExportModal",
+      "description": "Modal de exportación con opciones de formato, calidad y presets",
+      "props": [
+        { "name": "isOpen", "type": "boolean", "required": true, "description": "Estado de apertura" },
+        { "name": "onClose", "type": "() => void", "required": true, "description": "Callback al cerrar" },
+        { "name": "onExport", "type": "(options: ExportOptions) => void", "required": true, "description": "Callback al exportar" },
+        { "name": "formats", "type": "ExportFormat[]", "default": "['jpeg', 'png', 'webp']", "description": "Formatos disponibles" },
+        { "name": "presets", "type": "ExportPreset[]", "default": "[]", "description": "Presets de exportación" },
+        { "name": "maxDimensions", "type": "{ width: number; height: number }", "optional": true, "description": "Dimensiones máximas" },
+        { "name": "defaultQuality", "type": "number", "default": "90", "description": "Calidad por defecto" }
+      ],
+      "api": {
+        "methods": [
+          { "name": "setFormat", "signature": "(format: string) => void", "description": "Establece formato" },
+          { "name": "setQuality", "signature": "(quality: number) => void", "description": "Establece calidad" },
+          { "name": "setDimensions", "signature": "(width: number, height: number) => void", "description": "Establece dimensiones" }
+        ]
+      },
+      "usage": "<ExportModal isOpen={showExport} onClose={closeExport} onExport={handleExport} />"
+    }
+  ],
+  "animations": {
+    "fadeInGlass": {
+      "description": "Entrada glassmorphism con blur progresivo",
+      "duration": "280ms",
+      "easing": "cubic-bezier(0.22, 0.77, 0.3, 1)",
+      "properties": {
+        "opacity": { "from": 0, "to": 1 },
+        "backdropFilter": { "from": "blur(6px)", "to": "blur(12px)" },
+        "transform": { "from": "translateY(8px)", "to": "translateY(0)" }
+      },
+      "whenToUse": "Apertura de modales, paneles flotantes, tooltips",
+      "reducedMotion": "opacity only, no blur"
+    },
+    "springScale": {
+      "description": "Escala con rebote spring para iconos y botones",
+      "type": "spring",
+      "stiffness": 180,
+      "damping": 18,
+      "mass": 1,
+      "properties": {
+        "scale": { "from": 0.9, "to": 1 }
+      },
+      "whenToUse": "Hover en iconos, notificaciones, badges",
+      "reducedMotion": "instant scale to 1"
+    },
+    "splitHandleDrag": {
+      "description": "Arrastre del handle de split con inercia y snap",
+      "type": "physics",
+      "inertia": true,
+      "maxOvershoot": "12px",
+      "snapThreshold": 0.15,
+      "snapTarget": 0.5,
+      "properties": {
+        "x": { "type": "drag", "bounds": "parent" }
+      },
+      "whenToUse": "Before/after split handle",
+      "reducedMotion": "no overshoot, instant snap"
+    },
+    "buttonHover": {
+      "description": "Efecto hover en botones",
+      "duration": "30ms",
+      "easing": "ease-out",
+      "properties": {
+        "scale": { "from": 1, "to": 1.03 },
+        "boxShadow": { "from": "none", "to": "var(--shadow-glow)" }
+      },
+      "whenToUse": "Todos los botones interactivos"
+    },
+    "buttonPressed": {
+      "description": "Efecto pressed en botones",
+      "duration": "60ms",
+      "easing": "ease-in",
+      "properties": {
+        "scale": { "from": 1.03, "to": 0.98 }
+      },
+      "whenToUse": "Click/tap en botones"
+    },
+    "toastIn": {
+      "description": "Entrada de toast con slide y spring",
+      "type": "spring",
+      "stiffness": 300,
+      "damping": 25,
+      "properties": {
+        "opacity": { "from": 0, "to": 1 },
+        "x": { "from": 100, "to": 0 },
+        "scale": { "from": 0.9, "to": 1 }
+      },
+      "whenToUse": "Notificaciones toast"
+    },
+    "toastOut": {
+      "description": "Salida de toast",
+      "duration": "200ms",
+      "easing": "ease-in",
+      "properties": {
+        "opacity": { "from": 1, "to": 0 },
+        "x": { "from": 0, "to": 50 },
+        "scale": { "from": 1, "to": 0.95 }
+      },
+      "whenToUse": "Cierre de toast"
+    },
+    "countdownProgress": {
+      "description": "Progreso circular del temporizador",
+      "duration": "variable",
+      "easing": "linear",
+      "finalBounce": {
+        "duration": "250ms",
+        "easing": "cubic-bezier(0.68, -0.55, 0.265, 1.55)"
+      },
+      "properties": {
+        "strokeDashoffset": { "from": "circumference", "to": 0 },
+        "scale": { "final": { "from": 1, "to": 1.1, "back": 1 } }
+      },
+      "whenToUse": "Temporizador de cámara"
+    },
+    "sliderHaptic": {
+      "description": "Feedback tipo háptico en sliders",
+      "type": "spring",
+      "stiffness": 400,
+      "damping": 15,
+      "overshoot": 0.02,
+      "properties": {
+        "scale": { "from": 1, "to": 1.05, "back": 1 }
+      },
+      "whenToUse": "Al soltar slider o alcanzar valor clave"
+    },
+    "panelSlide": {
+      "description": "Deslizamiento de paneles laterales",
+      "duration": "300ms",
+      "easing": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "properties": {
+        "x": { "from": "-100%", "to": 0 },
+        "opacity": { "from": 0, "to": 1 }
+      },
+      "whenToUse": "Apertura/cierre de paneles de ajustes"
+    },
+    "histogramUpdate": {
+      "description": "Actualización suave del histograma",
+      "duration": "150ms",
+      "easing": "ease-out",
+      "properties": {
+        "height": { "type": "interpolate" }
+      },
+      "whenToUse": "Cambios en ajustes que afectan histograma"
+    },
+    "curvePointDrag": {
+      "description": "Arrastre de puntos en curva de tonos",
+      "type": "spring",
+      "stiffness": 250,
+      "damping": 20,
+      "properties": {
+        "cx": { "type": "drag" },
+        "cy": { "type": "drag" }
+      },
+      "constraints": {
+        "x": { "min": 0, "max": 255 },
+        "y": { "min": 0, "max": 255 }
+      },
+      "whenToUse": "Edición de curva de tonos"
+    }
+  },
+  "threeScenes": {
+    "heroStage": {
+      "description": "Escena 3D dinámica detrás del editor con cámara/film accessory rotando",
+      "camera": {
+        "fov": 45,
+        "position": [0, 0, 8],
+        "target": [0, 0, 0],
+        "near": 0.1,
+        "far": 100
+      },
+      "lights": [
+        { "type": "directional", "position": [5, 5, 5], "intensity": 1.2, "color": "#ffffff", "name": "key" },
+        { "type": "directional", "position": [-5, 3, 2], "intensity": 0.6, "color": "#e0f2fe", "name": "fill" },
+        { "type": "point", "position": [0, -3, -2], "intensity": 0.8, "color": "#818cf8", "name": "rim" },
+        { "type": "ambient", "intensity": 0.3, "color": "#1a1a25" }
+      ],
+      "materials": {
+        "cameraBody": {
+          "type": "meshStandardMaterial",
+          "color": "#222230",
+          "roughness": 0.45,
+          "metalness": 0.05,
+          "envMapIntensity": 1
+        },
+        "lensGlass": {
+          "type": "meshPhysicalMaterial",
+          "color": "#0a0a0f",
+          "roughness": 0.05,
+          "metalness": 0.9,
+          "transmission": 0.1,
+          "thickness": 0.5
+        },
+        "accent": {
+          "type": "meshStandardMaterial",
+          "color": "#6366f1",
+          "roughness": 0.3,
+          "metalness": 0.2,
+          "emissive": "#6366f1",
+          "emissiveIntensity": 0.2
+        }
+      },
+      "objects": [
+        {
+          "name": "cameraModel",
+          "type": "gltf",
+          "path": "/models/camera-lowpoly.glb",
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": 1,
+          "animation": "continuous-rotate-y"
+        },
+        {
+          "name": "filmReel",
+          "type": "gltf",
+          "path": "/models/film-reel-lowpoly.glb",
+          "position": [2.5, -1, -1],
+          "rotation": [0.3, 0, 0],
+          "scale": 0.6,
+          "animation": "slow-rotate-z"
+        }
+      ],
+      "interactions": {
+        "mouseParallax": {
+          "enabled": true,
+          "sensitivity": 0.02,
+          "maxOffset": 0.5
+        }
+      },
+      "lod": {
+        "levels": [
+          { "distance": 0, "mesh": "high", "triangles": 5000 },
+          { "distance": 5, "mesh": "medium", "triangles": 2000 },
+          { "distance": 10, "mesh": "low", "triangles": 500 }
+        ]
+      },
+      "performance": {
+        "maxDrawCalls": 10,
+        "targetFPS": 60,
+        "useInstancing": false,
+        "shadowMap": "PCFSoft",
+        "antialias": true
+      },
+      "fallback": {
+        "type": "css",
+        "implementation": "Parallax con SVG borroso y gradientes animados",
+        "elements": [
+          { "type": "div", "class": "hero-fallback-bg", "animation": "gradient-shift" },
+          { "type": "svg", "src": "/fallback/camera-illustration.svg", "animation": "float" }
+        ]
+      }
+    },
+    "histogram3D": {
+      "description": "Visualizador de histograma en 3D con barras animadas",
+      "camera": {
+        "fov": 35,
+        "position": [0, 8, 12],
+        "target": [0, 0, 0],
+        "orthographic": false
+      },
+      "lights": [
+        { "type": "ambient", "intensity": 0.5, "color": "#ffffff" },
+        { "type": "directional", "position": [0, 10, 5], "intensity": 0.8 }
+      ],
+      "materials": {
+        "barShadows": { "color": "#3b82f6", "roughness": 0.4 },
+        "barMidtones": { "color": "#22c55e", "roughness": 0.4 },
+        "barHighlights": { "color": "#f59e0b", "roughness": 0.4 }
+      },
+      "objects": [
+        {
+          "name": "histogramBars",
+          "type": "instancedMesh",
+          "count": 256,
+          "geometry": "box",
+          "size": [0.03, 1, 0.03],
+          "spacing": 0.035,
+          "animation": "height-interpolate"
+        }
+      ],
+      "performance": {
+        "maxDrawCalls": 1,
+        "useInstancing": true,
+        "updateFrequency": "on-demand",
+        "gpuBuffer": true
+      },
+      "fallback": {
+        "type": "canvas2d",
+        "implementation": "Canvas 2D con barras animadas vía requestAnimationFrame"
+      }
+    },
+    "beforeAfterShader": {
+      "description": "Shader de transición before/after con vignetting y film grain",
+      "uniforms": [
+        { "name": "uProgress", "type": "float", "range": [0, 1], "default": 0.5 },
+        { "name": "uTextureBefore", "type": "sampler2D" },
+        { "name": "uTextureAfter", "type": "sampler2D" },
+        { "name": "uVignetteStrength", "type": "float", "default": 0.3 },
+        { "name": "uGrainIntensity", "type": "float", "default": 0.05 },
+        { "name": "uTime", "type": "float" }
+      ],
+      "vertexShader": `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      "fragmentShader": `
+        uniform float uProgress;
+        uniform sampler2D uTextureBefore;
+        uniform sampler2D uTextureAfter;
+        uniform float uVignetteStrength;
+        uniform float uGrainIntensity;
+        uniform float uTime;
+        varying vec2 vUv;
+        
+        float random(vec2 st) {
+          return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        }
+        
+        void main() {
+          vec2 uv = vUv;
+          float progress = uProgress;
+          
+          // Blend based on x position with smooth transition
+          float edge = smoothstep(progress - 0.05, progress + 0.05, uv.x);
+          
+          vec4 before = texture2D(uTextureBefore, uv);
+          vec4 after = texture2D(uTextureAfter, uv);
+          
+          vec4 color = mix(before, after, edge);
+          
+          // Vignette
+          vec2 center = uv - 0.5;
+          float vignette = 1.0 - dot(center, center) * uVignetteStrength;
+          color.rgb *= vignette;
+          
+          // Film grain
+          float grain = random(uv + uTime) * uGrainIntensity;
+          color.rgb += grain - uGrainIntensity * 0.5;
+          
+          gl_FragColor = color;
+        }
+      `,
+      "performance": {
+        "targetFPS": 60,
+        "useFBO": true,
+        "precision": "mediump"
+      },
+      "fallback": {
+        "type": "css",
+        "implementation": "Clip-path con gradiente y overlay de grain CSS"
+      }
+    }
+  },
+  "accessibility": {
+    "keyboardNavigation": {
+      "description": "Navegación completa por teclado",
+      "shortcuts": [
+        { "key": "C", "action": "Cambiar a vista Camera" },
+        { "key": "E", "action": "Cambiar a vista Editor" },
+        { "key": "Space", "action": "Capturar foto / Play-Pause" },
+        { "key": "1-4", "action": "Seleccionar categoría de ajustes" },
+        { "key": "Ctrl+Z", "action": "Deshacer" },
+        { "key": "Ctrl+Shift+Z", "action": "Rehacer" },
+        { "key": "Ctrl+S", "action": "Exportar" },
+        { "key": "R", "action": "Resetear ajustes" },
+        { "key": "Tab", "action": "Navegar entre controles" },
+        { "key": "Arrow keys", "action": "Ajustar slider con precisión" },
+        { "key": "Shift+Arrow", "action": "Ajuste fino de sliders" }
+      ]
+    },
+    "ariaRoles": {
+      "components": [
+        { "component": "Camera", "role": "region", "label": "Cámara - Preview en tiempo real" },
+        { "component": "Editor", "role": "region", "label": "Editor de imagen" },
+        { "component": "Slider", "role": "slider", "properties": ["aria-valuemin", "aria-valuemax", "aria-valuenow", "aria-valuetext"] },
+        { "component": "SplitHandle", "role": "separator", "properties": ["aria-valuenow", "aria-orientation"] },
+        { "component": "ToneCurve", "role": "application", "label": "Editor de curva de tonos - Use flechas para mover puntos" },
+        { "component": "ExportModal", "role": "dialog", "properties": ["aria-modal", "aria-labelledby"] },
+        { "component": "Toolbar", "role": "toolbar", "properties": ["aria-orientation"] }
+      ]
+    },
+    "focusManagement": {
+      "visibleFocusRing": {
+        "description": "Anillo de foco visible en todos los elementos interactivos",
+        "implementation": "outline: 2px solid var(--accent-primary); outline-offset: 2px;",
+        "contrast": "3:1 contra fondo"
+      },
+      "focusTrap": {
+        "description": "Trap de foco en modales",
+        "implementation": "Usar FocusScope de Radix UI o implementación custom"
+      },
+      "restoreFocus": {
+        "description": "Restaurar foco al cerrar modal",
+        "implementation": "Guardar elemento activo antes de abrir, restaurar al cerrar"
+      }
+    },
+    "screenReader": {
+      "liveRegions": [
+        { "id": "adjustment-values", "politeness": "polite", "content": "Valor actual de ajustes" },
+        { "id": "capture-status", "politeness": "assertive", "content": "Estado de captura" },
+        { "id": "export-progress", "politeness": "polite", "content": "Progreso de exportación" }
+      ],
+      "descriptiveLabels": {
+        "sliders": "{label}: {valor} de {mínimo} a {máximo}",
+        "buttons": "{acción} - {atajo de teclado si aplica}"
+      }
+    },
+    "colorContrast": {
+      "primaryText": { "ratio": "4.5:1", "foreground": "#f8fafc", "background": "#1a1a25" },
+      "secondaryText": { "ratio": "4.5:1", "foreground": "#94a3b8", "background": "#0a0a0f" },
+      "uiControls": { "ratio": "3:1", "description": "Bordes, iconos, indicadores no críticos" },
+      "focusIndicator": { "ratio": "3:1", "foreground": "#6366f1", "background": "var(--bg)" }
+    },
+    "reducedMotion": {
+      "description": "Respetar prefers-reduced-motion",
+      "implementation": "@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }",
+      "exceptions": ["Opacity transitions pueden mantenerse si son esenciales"]
+    },
+    "i18n": {
+      "format": "i18next",
+      "namespaces": ["common", "camera", "editor", "adjustments", "export"],
+      "interpolation": { "escapeValue": false },
+      "pluralization": true,
+      "exampleKeys": {
+        "camera.capture": "Capturar",
+        "camera.timer": "Temporizador: {{seconds}}s",
+        "adjustments.exposure": "Exposición",
+        "adjustments.value": "{{value}} EV",
+        "export.quality": "Calidad: {{percent}}%"
+      }
+    }
+  },
+  "perfGuidelines": {
+    "gpuOptimization": {
+      "description": "Optimizaciones para GPU rendering",
+      "techniques": [
+        { "name": "will-change", "usage": "Aplicar a elementos animados: will-change: transform, opacity;" },
+        { "name": "transform3d", "usage": "Forzar capa GPU: transform: translateZ(0);" },
+        { "name": "contain", "usage": "Aislar layout: contain: layout style paint;" },
+        { "name": "content-visibility", "usage": "Lazy render offscreen: content-visibility: auto;" }
+      ]
+    },
+    "lodStrategy": {
+      "description": "Niveles de detalle para modelos 3D",
+      "implementation": "Cambiar mesh basado en distancia a cámara",
+      "thresholds": [
+        { "distance": "0-5 units", "detail": "high", "polygons": 5000 },
+        { "distance": "5-10 units", "detail": "medium", "polygons": 2000 },
+        { "distance": "10+ units", "detail": "low", "polygons": 500 }
+      ]
+    },
+    "lazyLoading": {
+      "description": "Carga diferida de recursos",
+      "strategies": [
+        { "resource": "3D Models", "method": "React.lazy + Suspense", "threshold": "when visible" },
+        { "resource": "Histogram WebGL", "method": "Dynamic import", "threshold": "on first adjustment" },
+        { "resource": "Tone Curve SVG", "method": "Eager load", "threshold": "immediate" },
+        { "resource": "Export presets", "method": "Lazy load JSON", "threshold": "on modal open" }
+      ]
+    },
+    "offscreenCanvas": {
+      "description": "Procesamiento en OffscreenCanvas",
+      "useCases": [
+        "Cálculo de histograma",
+        "Aplicación de filtros de imagen",
+        "Generación de thumbnails",
+        "Procesamiento de exportación"
+      ],
+      "implementation": "const offscreen = canvas.transferControlToOffscreen(); worker.postMessage({ canvas: offscreen }, [offscreen]);"
+    },
+    "webWorkers": {
+      "description": "Web Workers para procesamiento pesado",
+      "workers": [
+        { "name": "imageProcessor", "tasks": ["applyAdjustments", "generateHistogram", "exportImage"] },
+        { "name": "curveCalculator", "tasks": ["calculateSpline", "interpolateCurve"] },
+        { "name": "thumbnailGenerator", "tasks": ["generatePreview", "createThumbnail"] }
+      ],
+      "communication": "MessageChannel para comunicación bidireccional eficiente"
+    },
+    "debouncing": {
+      "description": "Debounce para sliders y inputs",
+      "values": [
+        { "component": "Adjustment sliders", "delay": "50ms", "strategy": "leading: false, trailing: true" },
+        { "component": "Zoom/Pan", "delay": "16ms", "strategy": "RAF throttle" },
+        { "component": "Histogram update", "delay": "80ms", "strategy": "trailing only" },
+        { "component": "Export preview", "delay": "300ms", "strategy": "trailing only" }
+      ]
+    },
+    "memoryManagement": {
+      "description": "Gestión de memoria para recursos grandes",
+      "techniques": [
+        { "name": "Image disposal", "implementation": "URL.revokeObjectURL() cuando imagen se descarta" },
+        { "name": "Texture cleanup", "implementation": "dispose() en texturas Three.js al desmontar" },
+        { "name": "Worker termination", "implementation": "terminate() workers cuando no se necesitan" },
+        { "name": "Cache size limit", "implementation": "LRU cache con límite de 50MB para previews" }
+      ]
+    },
+    "rendering": {
+      "description": "Optimización de renderizado",
+      "strategies": [
+        { "name": "React.memo", "usage": "Envolver componentes pesados que no cambian frecuentemente" },
+        { "name": "useMemo", "usage": "Memorizar cálculos costosos de histograma y curvas" },
+        { "name": "useCallback", "usage": "Estabilizar callbacks pasados a componentes hijos" },
+        { "name": "Virtualization", "usage": "React-window para listas largas de presets" },
+        { "name": "RAF scheduling", "usage": "scheduleCallback de React para trabajo no urgente" }
+      ]
+    }
+  },
+  "acceptanceTests": {
+    "Camera": {
+      "criteria": [
+        "Preview en tiempo real con latencia < 100ms",
+        "Cambio de resolución sin recargar página",
+        "Temporizador visual preciso (±100ms)",
+        "Countdown overlay con animación circular suave",
+        "Multi-cámara: switch < 500ms",
+        "Captura: blob válido generado",
+        "Tecla 'C' enfoca vista Camera"
+      ],
+      "manualTests": [
+        "Verificar preview fluido en 4K",
+        "Probar temporizador 2s, 5s, 10s",
+        "Cambiar entre cámaras frontales/traseras",
+        "Capturar y verificar metadatos"
+      ],
+      "automatedTests": [
+        "Unit: getUserMedia mock, verificar stream",
+        "E2E: Captura y descarga de imagen",
+        "A11y: Navegación por teclado completa"
+      ]
+    },
+    "Editor": {
+      "criteria": [
+        "Before/after split: handle draggable con tolerancia ±2px",
+        "Split snap a 50% si velocidad < threshold",
+        "Zoom suave: 0.1x - 5x con pan infinito",
+        "Grid overlays render correctamente",
+        "Zebra patterns en highlights > 95%",
+        "Histograma actualiza < 150ms tras ajuste",
+        "Tecla 'E' enfoca vista Editor"
+      ],
+      "manualTests": [
+        "Arrastrar split handle de extremo a extremo",
+        "Zoom con rueda del ratón/trackpad",
+        "Pan con click+drag",
+        "Verificar zebra en imagen sobreexpuesta"
+      ],
+      "automatedTests": [
+        "Unit: Cálculo de split position",
+        "Visual: Screenshot comparison de overlays",
+        "Perf: FPS > 55 durante zoom/pan"
+      ]
+    },
+    "AdjustmentsPanel": {
+      "criteria": [
+        "Sliders bidireccionales: rango -100 a +100",
+        "Snap-to-zero: magnetismo en ±5 unidades",
+        "Glow en slider activo/hover",
+        "Tooltip valor en tiempo real",
+        "Haptic feedback visual (micro-overshoot)",
+        "Reset individual y por categoría",
+        "8 canales HSL independientes"
+      ],
+      "manualTests": [
+        "Arrastrar slider cerca de cero, verificar snap",
+        "Verificar glow en hover",
+        "Probar teclas flecha para ajuste fino",
+        "Resetear categoría completa"
+      ],
+      "automatedTests": [
+        "Unit: snapToZero logic",
+        "A11y: aria-valuenow actualizado",
+        "Interaction: Drag simulation con user-event"
+      ]
+    },
+    "ToneCurveEditor": {
+      "criteria": [
+        "Spline cúbico suave entre puntos",
+        "Histograma overlay sincronizado",
+        "Drag de puntos con constraints 0-255",
+        "Add/remove puntos con click",
+        "Curve diagonal por defecto",
+        "Presets aplican instantáneamente",
+        "Canales RGB individuales"
+      ],
+      "manualTests": [
+        "Crear curva S clásica",
+        "Arrastrar puntos a esquinas",
+        "Cambiar entre canales RGB",
+        "Aplicar preset 'High Contrast'"
+      ],
+      "automatedTests": [
+        "Unit: Cálculo spline cúbico",
+        "Unit: Constraint validation",
+        "Visual: Screenshot de curvas"
+      ]
+    },
+    "ExportModal": {
+      "criteria": [
+        "Formatos: JPEG, PNG, WebP",
+        "Calidad: 1-100 con preview",
+        "Dimensiones: mantener ratio opcional",
+        "Presets quick actions disponibles",
+        "Progreso de exportación visible",
+        "Cancelación de exportación",
+        "Focus trap activo"
+      ],
+      "manualTests": [
+        "Exportar en cada formato",
+        "Cambiar calidad, verificar tamaño archivo",
+        "Cancelar exportación en progreso",
+        "Navegar con teclado en modal"
+      ],
+      "automatedTests": [
+        "Unit: Opciones de exportación válidas",
+        "E2E: Export completo y descarga",
+        "A11y: Focus trap y aria-modal"
+      ]
+    },
+    "Performance": {
+      "criteria": [
+        "First Contentful Paint < 1.5s",
+        "Time to Interactive < 3s",
+        "Animation frame rate ≥ 55 FPS",
+        "Memory usage < 200MB",
+        "Lighthouse Performance score ≥ 90"
+      ],
+      "automatedTests": [
+        "Lighthouse CI en cada PR",
+        "Bundle size tracking",
+        "FPS monitoring durante interacciones"
+      ]
+    }
+  },
+  "notes": {
+    "designDecisions": [
+      {
+        "decision": "Glassmorphism como estilo principal",
+        "rationale": "Proporciona profundidad visual sin distracción, alineado con estética premium tipo Lightroom",
+        "tradeoffs": "Requiere backdrop-filter (no soportado en Firefox sin flag), fallback a opacity"
+      },
+      {
+        "decision": "Framer Motion para animaciones UI",
+        "rationale": "API declarativa, excelente performance, soporte reduced-motion integrado",
+        "tradeoffs": "Bundle size ~25KB, alternativa: CSS transitions para animaciones simples"
+      },
+      {
+        "decision": "React Three Fiber para 3D",
+        "rationale": "Integración natural con React, hooks intuitivos, buena documentación",
+        "tradeoffs": "Curva de aprendizaje, requiere conocimientos Three.js para shaders custom"
+      },
+      {
+        "decision": "Zustand para state management",
+        "rationale": "Minimalista, TypeScript-friendly, sin boilerplate vs Redux",
+        "tradeoffs": "Debugging menos maduro que Redux DevTools (aunque soporta middleware)"
+      },
+      {
+        "decision": "Web Workers para procesamiento imagen",
+        "rationale": "Evita bloqueo UI, permite procesamiento paralelo",
+        "tradeoffs": "Complejidad de comunicación, no acceso directo a DOM"
+      },
+      {
+        "decision": "SVG para Tone Curve (no Canvas)",
+        "rationale": "Mejor accesibilidad, DOM manipulable, eventos nativos",
+        "tradeoffs": "Performance inferior a Canvas para muchos puntos, pero suficiente para curvas"
+      }
+    ],
+    "integrationTips": [
+      "Instalar dependencias: npm install framer-motion three @react-three/fiber @react-three/drei zustand",
+      "Configurar Tailwind con custom colors que match design tokens",
+      "Crear ThemeProvider con CSS variables para modo oscuro",
+      "Implementar useReducedMotion hook para respetar preferencias",
+      "Configurar Webpack/Vite para worker imports: import Worker from './worker.ts?worker'",
+      "Usar React.lazy para ToneCurveEditor y escenas 3D",
+      "Implementar ErrorBoundary para fallback de WebGL"
+    ],
+    "knownRisks": [
+      {
+        "risk": "WebGL no disponible en algunos dispositivos/navegadores",
+        "impact": "Alta",
+        "mitigation": "Implementar fallback CSS/Canvas para todas las escenas 3D"
+      },
+      {
+        "risk": "Procesamiento de imagen 4K puede bloquear UI",
+        "impact": "Alta",
+        "mitigation": "Mover todo procesamiento a Web Workers, usar OffscreenCanvas"
+      },
+      {
+        "risk": "Memory leaks con texturas Three.js",
+        "impact": "Media",
+        "mitigation": "Implementar cleanup en useEffect return, usar useMemo para materiales"
+      },
+      {
+        "risk": "Bundle size grande con Three.js",
+        "impact": "Media",
+        "mitigation": "Tree-shaking, importar solo módulos necesarios, lazy load escenas 3D"
+      },
+      {
+        "risk": "prefers-reduced-motion no implementado",
+        "impact": "Baja (accesibilidad)",
+        "mitigation": "Crear hook useReducedMotion, aplicar a todas las animaciones"
+      }
+    ],
+    "browserSupport": {
+      "target": ["Chrome 90+", "Firefox 88+", "Safari 14+", "Edge 90+"],
+      "features": {
+        "required": ["ES2020", "CSS Grid", "Flexbox", "Custom Properties"],
+        "optional": ["WebGL 2", "OffscreenCanvas", "Backdrop Filter"]
+      },
+      "polyfills": ["InterObserver", "ResizeObserver"]
+    }
+  },
+  "quickIntegrationChecklist": [
+    "✅ Instalar dependencias: npm install framer-motion three @react-three/fiber @react-three/drei zustand lucide-react",
+    "✅ Copiar design tokens a :root en CSS global",
+    "✅ Configurar store Zustand con estado de ajustes y UI",
+    "✅ Implementar Web Worker para procesamiento de imagen",
+    "✅ Crear ErrorBoundary para fallback de WebGL",
+    "✅ Agregar atajos de teclado con useKeyboardShortcuts hook",
+    "✅ Configurar i18n con react-i18next",
+    "✅ Implementar prefers-reduced-motion detection",
+    "✅ Optimizar bundle con lazy loading de componentes 3D",
+    "✅ Configurar Lighthouse CI para performance budgets"
+  ],
+  "devNotes": {
+    "technicalRisks": [
+      "WebGL context loss en móviles - implementar restore handler",
+      "CORS en carga de imágenes - usar proxy o canvas tainting",
+      "Memory pressure con imágenes grandes - implementar LRU cache",
+      "Safari IndexedDB bugs - usar memory storage como fallback"
+    ],
+    "solutions": [
+      "Crear WebGLContextManager para manejar context loss/restore",
+      "Implementar CORS proxy para imágenes externas",
+      "Usar compressionStream API para reducir memoria",
+      "Feature detection antes de usar APIs avanzadas"
+    ],
+    "debugging": [
+      "Usar React DevTools Profiler para identificar re-renders",
+      "Three.js Inspector para debugging de escenas",
+      "Chrome Performance tab para análisis de FPS",
+      "Lighthouse para métricas de performance"
+    ]
+  }
+}

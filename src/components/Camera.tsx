@@ -1,408 +1,792 @@
 /**
- * APEX Photo Studio - Premium Camera Capture Component
- * 
- * Professional camera capture with:
- * - MediaDevices API for camera access
- * - Resolution selection
- * - Live preview with vignette
- * - Timer with animated countdown
- * - Glassmorphism controls
+ * APEX Photo Studio v1.1.0 - Camera Component
+ * Vista de cámara con preview en tiempo real, selector de resolución,
+ * temporizador animado y soporte multi-cámara.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera as CameraIcon, Settings, Timer, RotateCcw, Aperture, X, Video, VideoOff } from 'lucide-react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import {
+  Camera as CameraIcon,
+  Timer,
+  RefreshCw,
+  Settings2,
+  Maximize2,
+  Aperture,
+  ChevronDown,
+  X
+} from 'lucide-react';
 import { useImageStore } from '@/hooks/useImageStore';
 
-interface CameraDevice {
-  deviceId: string;
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+export interface CameraDevice {
+  id: string;
   label: string;
+  kind: 'videoinput';
+  facing?: 'user' | 'environment';
 }
 
-export function Camera() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  
-  const [devices, setDevices] = useState<CameraDevice[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
-  const { camera, setCameraSettings, setOriginalImage, setUIState } = useImageStore();
-  
-  // Helper to get specific error messages
-  const getCameraErrorMessage = (err: unknown): string => {
-    if (err instanceof Error) {
-      const name = err.name;
-      const message = err.message.toLowerCase();
-      
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        return '🚫 Camera permission denied. Click the lock icon in your browser\'s address bar and allow camera access, then refresh the page.';
-      }
-      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        return '📷 No camera found. Please connect a camera and try again.';
-      }
-      if (name === 'NotReadableError' || name === 'TrackStartError') {
-        return '⚠️ Camera is in use by another application. Close other apps using the camera and try again.';
-      }
-      if (name === 'OverconstrainedError') {
-        return '⚙️ Camera doesn\'t support the requested resolution. Try a lower resolution in settings.';
-      }
-      if (name === 'TypeError' || message.includes('undefined')) {
-        return '🌐 Camera API not available. Make sure you\'re using HTTPS and a modern browser.';
-      }
-      if (name === 'AbortError') {
-        return '❌ Camera access was interrupted. Please try again.';
-      }
-      
-      return `❓ Camera error: ${err.message}`;
-    }
-    return '❓ Unknown camera error. Please try again.';
-  };
+export interface CameraResolution {
+  label: string;
+  width: number;
+  height: number;
+  value: string;
+}
 
-  // Enumerate cameras
+export interface CameraProps {
+  /** Resolución de captura */
+  resolution?: '4K' | '1080p' | '720p';
+  /** Duración del temporizador en segundos (0 = off) */
+  timerDuration?: 0 | 2 | 5 | 10;
+  /** ID de la cámara activa */
+  activeCamera?: string;
+  /** Lista de cámaras disponibles */
+  availableCameras?: CameraDevice[];
+  /** Callback al capturar foto */
+  onCapture?: (blob: Blob, metadata: CaptureMetadata) => void;
+  /** Callback al cambiar resolución */
+  onResolutionChange?: (res: '4K' | '1080p' | '720p') => void;
+  /** Callback al cambiar cámara */
+  onCameraSwitch?: (deviceId: string) => void;
+  /** Callback al iniciar/detener temporizador */
+  onTimerChange?: (seconds: number) => void;
+  /** Callback en error de cámara */
+  onError?: (error: Error) => void;
+  /** Clase CSS adicional */
+  className?: string;
+}
+
+export interface CaptureMetadata {
+  timestamp: number;
+  resolution: string;
+  cameraId: string;
+  timerUsed: number;
+}
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const RESOLUTIONS: Record<string, CameraResolution> = {
+  '4K': { label: '4K UHD', width: 3840, height: 2160, value: '4K' },
+  '1080p': { label: 'Full HD', width: 1920, height: 1080, value: '1080p' },
+  '720p': { label: 'HD', width: 1280, height: 720, value: '720p' }
+};
+
+const TIMER_OPTIONS = [0, 2, 5, 10] as const;
+
+// ============================================================================
+// ANIMATION VARIANTS
+// ============================================================================
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.28,
+      ease: 'easeOut' as const,
+      staggerChildren: 0.05
+    }
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.2, ease: 'easeIn' as const }
+  }
+};
+
+const glassPanelVariants = {
+  hidden: {
+    opacity: 0,
+    backdropFilter: 'blur(6px)',
+    y: 8
+  },
+  visible: {
+    opacity: 1,
+    backdropFilter: 'blur(12px)',
+    y: 0,
+    transition: {
+      duration: 0.28,
+      ease: 'easeOut' as const
+    }
+  }
+};
+
+const countdownVariants = {
+  initial: { scale: 0.5, opacity: 0 },
+  animate: {
+    scale: 1,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+      damping: 20
+    }
+  },
+  exit: {
+    scale: 1.5,
+    opacity: 0,
+    transition: { duration: 0.15 }
+  }
+} as const;
+
+const buttonHoverVariants = {
+  rest: { scale: 1 },
+  hover: {
+    scale: 1.03,
+    transition: { duration: 0.03, ease: 'easeOut' as const }
+  },
+  tap: {
+    scale: 0.98,
+    transition: { duration: 0.06, ease: 'easeIn' as const }
+  }
+} as const;
+
+const captureButtonVariants = {
+  rest: {
+    scale: 1,
+    boxShadow: '0 0 0 0 rgba(99, 102, 241, 0)'
+  },
+  hover: {
+    scale: 1.05,
+    boxShadow: '0 0 30px rgba(99, 102, 241, 0.5)',
+    transition: {
+      type: 'spring' as const,
+      stiffness: 180,
+      damping: 18
+    }
+  },
+  tap: {
+    scale: 0.95,
+    boxShadow: '0 0 10px rgba(99, 102, 241, 0.3)',
+    transition: { duration: 0.06 }
+  }
+} as const;
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+interface CountdownOverlayProps {
+  seconds: number;
+  onComplete: () => void;
+  onCancel: () => void;
+}
+
+const CountdownOverlay: React.FC<CountdownOverlayProps> = ({
+  seconds,
+  onComplete,
+  onCancel
+}) => {
+  const [count, setCount] = useState(seconds);
+  const controls = useAnimation();
+  const circumference = 2 * Math.PI * 80;
+
   useEffect(() => {
-    async function getDevices() {
-      try {
-        // Check if mediaDevices API is available
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setError('🌐 Camera API not available. Make sure you\'re using HTTPS and a modern browser (Chrome, Firefox, Edge, Safari).');
-          return;
-        }
-        
-        // Request permissions first
-        await navigator.mediaDevices.getUserMedia({ video: true });
-        
-        const deviceList = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = deviceList
-          .filter(d => d.kind === 'videoinput')
-          .map(d => ({
-            deviceId: d.deviceId,
-            label: d.label || `Camera ${d.deviceId.slice(0, 5)}`,
-          }));
-        
-        if (videoDevices.length === 0) {
-          setError('📷 No camera found. Please connect a camera and try again.');
-          return;
-        }
-        
-        setDevices(videoDevices);
-        
-        if (videoDevices.length > 0 && !camera.deviceId) {
-          setCameraSettings({ deviceId: videoDevices[0].deviceId });
-        }
-      } catch (err) {
-        setError(getCameraErrorMessage(err));
+    if (count <= 0) {
+      onComplete();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCount(c => c - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [count, onComplete]);
+
+  useEffect(() => {
+    controls.start({
+      strokeDashoffset: 0,
+      transition: {
+        duration: 1,
+        ease: 'linear'
       }
-    }
-    
-    getDevices();
-  }, []);
+    });
+  }, [count, controls]);
+
+  return (
+    <motion.div
+      className="absolute inset-0 z-[900] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onCancel}
+    >
+      <motion.div
+        className="relative flex items-center justify-center"
+        variants={countdownVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+      >
+        {/* Progress Circle */}
+        <svg className="w-48 h-48 -rotate-90" viewBox="0 0 200 200">
+          <circle
+            cx="100"
+            cy="100"
+            r="80"
+            fill="none"
+            stroke="rgba(255,255,255,0.1)"
+            strokeWidth="8"
+          />
+          <motion.circle
+            cx="100"
+            cy="100"
+            r="80"
+            fill="none"
+            stroke="#6366f1"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={controls}
+          />
+        </svg>
+
+        {/* Count Number */}
+        <motion.span
+          className="absolute text-7xl font-bold text-white"
+          key={count}
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{
+            scale: [0.8, 1.1, 1],
+            opacity: 1,
+            transition: {
+              duration: 0.25,
+              ease: 'backOut'
+            }
+          }}
+        >
+          {count}
+        </motion.span>
+      </motion.div>
+
+      <motion.p
+        className="absolute bottom-32 text-white/70 text-sm"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        Click para cancelar
+      </motion.p>
+    </motion.div>
+  );
+};
+
+interface CameraSelectorProps {
+  cameras: CameraDevice[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const CameraSelector: React.FC<CameraSelectorProps> = ({
+  cameras,
+  activeId,
+  onSelect,
+  isOpen,
+  onClose
+}) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[850]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[860] min-w-[280px]"
+            variants={glassPanelVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+          >
+            <div className="bg-[#1a1a25]/90 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10">
+                <p className="text-sm font-medium text-white/90">Seleccionar cámara</p>
+              </div>
+              <div className="p-2">
+                {cameras.map((camera, index) => (
+                  <motion.button
+                    key={camera.id}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                      activeId === camera.id
+                        ? 'bg-indigo-500/20 text-indigo-300'
+                        : 'hover:bg-white/5 text-white/80'
+                    }`}
+                    onClick={() => {
+                      onSelect(camera.id);
+                      onClose();
+                    }}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ x: 4 }}
+                  >
+                    <CameraIcon className="w-4 h-4" />
+                    <span className="text-sm">{camera.label || `Cámara ${index + 1}`}</span>
+                    {activeId === camera.id && (
+                      <motion.div
+                        className="ml-auto w-2 h-2 rounded-full bg-indigo-400"
+                        layoutId="activeIndicator"
+                      />
+                    )}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+interface ResolutionSelectorProps {
+  current: string;
+  onChange: (res: '4K' | '1080p' | '720p') => void;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const ResolutionSelector: React.FC<ResolutionSelectorProps> = ({
+  current,
+  onChange,
+  isOpen,
+  onClose
+}) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[850]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="absolute bottom-24 right-4 z-[860]"
+            variants={glassPanelVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+          >
+            <div className="bg-[#1a1a25]/90 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden min-w-[160px]">
+              <div className="px-4 py-3 border-b border-white/10">
+                <p className="text-sm font-medium text-white/90">Resolución</p>
+              </div>
+              <div className="p-2">
+                {Object.entries(RESOLUTIONS).map(([key, res], index) => (
+                  <motion.button
+                    key={key}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors ${
+                      current === key
+                        ? 'bg-indigo-500/20 text-indigo-300'
+                        : 'hover:bg-white/5 text-white/80'
+                    }`}
+                    onClick={() => {
+                      onChange(key as '4K' | '1080p' | '720p');
+                      onClose();
+                    }}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <span className="text-sm font-medium">{res.label}</span>
+                    <span className="text-xs text-white/50">{res.width}×{res.height}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+export const Camera: React.FC<CameraProps> = ({
+  resolution = '1080p',
+  timerDuration = 0,
+  activeCamera = 'default',
+  availableCameras = [],
+  onCapture,
+  onResolutionChange,
+  onCameraSwitch,
+  onTimerChange,
+  onError,
+  className = ''
+}) => {
+  const { setOriginalImage, setUIState } = useImageStore();
   
-  // Start/stop stream based on device selection
-  useEffect(() => {
-    if (!camera.deviceId) return;
-    
-    startStream();
-    
-    return () => {
-      stopStream();
-    };
-  }, [camera.deviceId, camera.resolution]);
-  
-  const getResolutionConstraints = useCallback(() => {
-    switch (camera.resolution) {
-      case '4k':
-        return { width: { ideal: 3840 }, height: { ideal: 2160 } };
-      case '2k':
-        return { width: { ideal: 2560 }, height: { ideal: 1440 } };
-      case '1080p':
-        return { width: { ideal: 1920 }, height: { ideal: 1080 } };
-      case '720p':
-        return { width: { ideal: 1280 }, height: { ideal: 720 } };
-      case 'max':
-      default:
-        return { width: { ideal: 4096 }, height: { ideal: 2160 } };
-    }
-  }, [camera.resolution]);
-  
-  const startStream = async () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [countdownActive, setCountdownActive] = useState(false);
+  const [currentResolution, setCurrentResolution] = useState(resolution);
+  const [currentTimer, setCurrentTimer] = useState(timerDuration);
+  const [currentCamera, setCurrentCamera] = useState(activeCamera);
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
+  const [showResolutionSelector, setShowResolutionSelector] = useState(false);
+  const [isMirrored, setIsMirrored] = useState(true);
+  const [flashActive, setFlashActive] = useState(false);
+
+  // Initialize camera stream
+  const initCamera = useCallback(async (deviceId?: string) => {
     try {
-      stopStream();
-      
+      const res = RESOLUTIONS[currentResolution];
       const constraints: MediaStreamConstraints = {
         video: {
-          deviceId: camera.deviceId ? { exact: camera.deviceId } : undefined,
-          ...getResolutionConstraints(),
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          width: { ideal: res.width },
+          height: { ideal: res.height }
         },
+        audio: false
       };
-      
+
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
         setIsStreaming(true);
-        setError(null);
       }
     } catch (err) {
-      console.error('Failed to start camera:', err);
-      setError(getCameraErrorMessage(err));
+      onError?.(err as Error);
       setIsStreaming(false);
     }
-  };
-  
-  const stopStream = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+  }, [currentResolution, onError]);
+
+  // Stop camera stream
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
-  };
-  
-  const captureFrame = useCallback(() => {
+  }, []);
+
+  // Capture photo
+  const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
     if (!video || !canvas) return;
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
-    ctx.drawImage(video, 0, 0);
-    
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    setOriginalImage(imageData, `capture_${Date.now()}.jpg`);
-    setUIState({ mode: 'editor' });
-  }, [setOriginalImage, setUIState]);
-  
-  const handleCapture = useCallback(() => {
-    if (camera.timer > 0) {
-      let remaining = camera.timer;
-      setCountdown(remaining);
-      
-      const interval = setInterval(() => {
-        remaining--;
-        if (remaining <= 0) {
-          clearInterval(interval);
-          setCountdown(null);
-          captureFrame();
-        } else {
-          setCountdown(remaining);
-        }
-      }, 1000);
-    } else {
-      captureFrame();
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    if (isMirrored) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
     }
-  }, [camera.timer, captureFrame]);
-  
-  const resolutions = [
-    { value: 'max', label: 'Max Quality' },
-    { value: '4k', label: '4K (3840×2160)' },
-    { value: '2k', label: '2K (2560×1440)' },
-    { value: '1080p', label: 'Full HD (1920×1080)' },
-    { value: '720p', label: 'HD (1280×720)' },
-  ];
-  
-  const timers = [0, 2, 5, 10];
-  
+
+    ctx.drawImage(video, 0, 0);
+
+    // Flash effect
+    setFlashActive(true);
+    setTimeout(() => setFlashActive(false), 150);
+
+    // Get ImageData for the store
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Save to store and switch to editor mode
+    setOriginalImage(imageData, `APEX_Photo_${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`);
+    setUIState({ mode: 'editor' });
+
+    // Also call the callback if provided
+    if (onCapture) {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          onCapture(blob, {
+            timestamp: Date.now(),
+            resolution: currentResolution,
+            cameraId: currentCamera,
+            timerUsed: currentTimer
+          });
+        }
+      }, 'image/jpeg', 0.95);
+    }
+  }, [isMirrored, currentResolution, currentCamera, currentTimer, onCapture, setOriginalImage, setUIState]);
+
+  // Handle countdown complete
+  const handleCountdownComplete = useCallback(() => {
+    setCountdownActive(false);
+    capturePhoto();
+  }, [capturePhoto]);
+
+  // Start capture (with or without timer)
+  const handleCaptureClick = useCallback(() => {
+    if (currentTimer > 0) {
+      setCountdownActive(true);
+    } else {
+      capturePhoto();
+    }
+  }, [currentTimer, capturePhoto]);
+
+  // Initialize on mount
+  useEffect(() => {
+    initCamera(currentCamera !== 'default' ? currentCamera : undefined);
+    return () => stopCamera();
+  }, [initCamera, stopCamera, currentCamera]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' && !countdownActive) {
+        e.preventDefault();
+        handleCaptureClick();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCaptureClick, countdownActive]);
+
+  // Get available cameras
+  useEffect(() => {
+    const getCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        // Update available cameras in parent
+      } catch (err) {
+        console.error('Error enumerating devices:', err);
+      }
+    };
+
+    getCameras();
+  }, []);
+
   return (
-    <div className="relative w-full h-full flex flex-col bg-[var(--apex-bg-darkest)]">
-      {/* Camera Preview */}
-      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-        {error ? (
-          <div className="text-center p-8 animate-fade-in-up">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[var(--apex-bg-elevated)] flex items-center justify-center">
-              <VideoOff className="w-10 h-10 text-[var(--apex-text-muted)]" />
-            </div>
-            <p className="text-[var(--apex-text-secondary)] mb-6 max-w-md">{error}</p>
-            <button
-              onClick={startStream}
-              className="px-6 py-2.5 bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] hover:from-[var(--apex-accent-light)] hover:to-[var(--apex-accent)] text-white rounded-lg font-medium transition-all duration-200 shadow-lg shadow-[var(--apex-accent-glow)]"
-            >
-              Retry Connection
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Video Preview with Vignette */}
-            <div className="relative vignette rounded-lg overflow-hidden shadow-2xl">
-              <video
-                ref={videoRef}
-                className="max-w-full max-h-[calc(100vh-16rem)] object-contain"
-                playsInline
-                muted
-              />
-              
-              {/* Stream Status Indicator */}
-              <div className="absolute top-4 left-4 flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${isStreaming ? 'bg-[var(--apex-green)] animate-pulse' : 'bg-[var(--apex-red)]'}`} />
-                <span className="text-xs font-medium text-white/80 glass px-2 py-0.5 rounded">
-                  {isStreaming ? 'LIVE' : 'OFFLINE'}
-                </span>
-              </div>
-              
-              {/* Resolution Badge */}
-              {isStreaming && videoRef.current && (
-                <div className="absolute top-4 right-4 glass px-2 py-1 rounded text-xs text-white/70 font-mono">
-                  {videoRef.current.videoWidth} × {videoRef.current.videoHeight}
-                </div>
-              )}
-            </div>
-            
-            {/* Countdown Overlay */}
-            {countdown !== null && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                <span 
-                  key={countdown}
-                  className="text-[10rem] font-bold text-white animate-countdown"
-                  style={{ textShadow: '0 0 60px rgba(14, 165, 233, 0.5)' }}
-                >
-                  {countdown}
-                </span>
-              </div>
-            )}
-          </>
-        )}
-        
+    <motion.div
+      className={`relative w-full h-full bg-[#0a0a0f] overflow-hidden ${className}`}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      role="region"
+      aria-label="Cámara - Preview en tiempo real"
+    >
+      {/* Video Preview */}
+      <div className="relative w-full h-full">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`w-full h-full object-cover transition-transform duration-300 ${
+            isMirrored ? 'scale-x-[-1]' : ''
+          }`}
+          style={{ filter: isStreaming ? 'none' : 'blur(20px)' }}
+        />
+
         {/* Hidden canvas for capture */}
         <canvas ref={canvasRef} className="hidden" />
-      </div>
-      
-      {/* Controls */}
-      <div className="p-6 glass-panel border-t border-[var(--apex-border)] animate-fade-in-up">
-        <div className="flex items-center justify-center gap-6">
-          {/* Settings Toggle */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`p-3 rounded-xl transition-all duration-200 ${
-              showSettings 
-                ? 'bg-[var(--apex-accent)] text-white shadow-lg shadow-[var(--apex-accent-glow)]' 
-                : 'bg-[var(--apex-bg-hover)] text-[var(--apex-text-muted)] hover:bg-[var(--apex-bg-elevated)] hover:text-[var(--apex-text-primary)]'
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-          
-          {/* Timer Selection */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--apex-bg-dark)] border border-[var(--apex-border)]">
-            <Timer className="w-4 h-4 text-[var(--apex-text-muted)] ml-2" />
-            {timers.map(t => (
-              <button
-                key={t}
-                onClick={() => setCameraSettings({ timer: t })}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  camera.timer === t
-                    ? 'bg-gradient-to-r from-[var(--apex-accent)] to-[#0284c7] text-white shadow-md'
-                    : 'text-[var(--apex-text-muted)] hover:text-[var(--apex-text-primary)] hover:bg-[var(--apex-bg-hover)]'
-                }`}
-              >
-                {t === 0 ? 'Off' : `${t}s`}
-              </button>
-            ))}
-          </div>
-          
-          {/* Capture Button */}
-          <button
-            onClick={handleCapture}
-            disabled={!isStreaming || countdown !== null}
-            className="relative w-20 h-20 rounded-full bg-white disabled:bg-gray-500 
-                       transition-all duration-300 transform hover:scale-105 active:scale-95
-                       flex items-center justify-center shadow-2xl group
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              boxShadow: isStreaming ? '0 0 30px rgba(255,255,255,0.3)' : undefined
-            }}
-          >
-            {/* Outer Ring */}
-            <div className={`absolute inset-0 rounded-full border-4 border-white/30 ${
-              isStreaming && countdown === null ? 'animate-capture-pulse' : ''
-            }`} />
-            
-            {/* Inner Circle */}
-            <div className="w-16 h-16 rounded-full bg-white border-4 border-gray-200 
-                          group-hover:border-[var(--apex-accent)] transition-colors duration-200" />
-            
-            {/* Shutter Icon on hover */}
-            <Aperture className="absolute w-6 h-6 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </button>
-          
-          {/* Switch Camera */}
-          {devices.length > 1 && (
-            <button
-              onClick={() => {
-                const currentIndex = devices.findIndex(d => d.deviceId === camera.deviceId);
-                const nextIndex = (currentIndex + 1) % devices.length;
-                setCameraSettings({ deviceId: devices[nextIndex].deviceId });
-              }}
-              className="p-3 rounded-xl bg-[var(--apex-bg-hover)] text-[var(--apex-text-muted)] 
-                         hover:bg-[var(--apex-bg-elevated)] hover:text-[var(--apex-text-primary)] transition-all duration-200"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
+
+        {/* Flash overlay */}
+        <AnimatePresence>
+          {flashActive && (
+            <motion.div
+              className="absolute inset-0 bg-white pointer-events-none"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            />
           )}
-        </div>
-        
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="mt-6 p-4 glass rounded-xl animate-fade-in-up">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[var(--apex-text-primary)]">Camera Settings</h3>
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="p-1 rounded-md hover:bg-[var(--apex-bg-hover)] text-[var(--apex-text-muted)] transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        </AnimatePresence>
+
+        {/* Countdown Overlay */}
+        <AnimatePresence>
+          {countdownActive && (
+            <CountdownOverlay
+              seconds={currentTimer}
+              onComplete={handleCountdownComplete}
+              onCancel={() => setCountdownActive(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Top Bar - Info */}
+        <motion.div
+          className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10"
+          variants={glassPanelVariants}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full">
+              <div className={`w-2 h-2 rounded-full ${isStreaming ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-xs font-medium text-white/80">
+                {isStreaming ? 'EN VIVO' : 'SIN SEÑAL'}
+              </span>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Camera Selection */}
-              <div>
-                <label className="block text-xs text-[var(--apex-text-muted)] mb-2 font-medium">
-                  <Video className="inline w-3 h-3 mr-1" />
-                  Camera Device
-                </label>
-                <select
-                  value={camera.deviceId}
-                  onChange={e => setCameraSettings({ deviceId: e.target.value })}
-                  className="w-full"
+            <div className="px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full">
+              <span className="text-xs font-medium text-white/80">{RESOLUTIONS[currentResolution].label}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {currentTimer > 0 && (
+              <motion.div
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/30 backdrop-blur-md rounded-full"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              >
+                <Timer className="w-3.5 h-3.5 text-indigo-300" />
+                <span className="text-xs font-medium text-indigo-200">{currentTimer}s</span>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Bottom Controls */}
+        <motion.div
+          className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-10"
+          variants={glassPanelVariants}
+        >
+          <div className="flex items-end justify-between max-w-4xl mx-auto">
+            {/* Left Controls */}
+            <div className="flex items-center gap-3">
+              {/* Camera Switch */}
+              <div className="relative">
+                <motion.button
+                  className="p-3 bg-[#1a1a25]/80 backdrop-blur-md rounded-xl border border-white/10 text-white/70 hover:text-white hover:bg-[#222230]/80 transition-colors"
+                  variants={buttonHoverVariants}
+                  initial="rest"
+                  whileHover="hover"
+                  whileTap="tap"
+                  onClick={() => setShowCameraSelector(!showCameraSelector)}
+                  aria-label="Cambiar cámara"
                 >
-                  {devices.map(d => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
+                  <RefreshCw className="w-5 h-5" />
+                </motion.button>
+                <CameraSelector
+                  cameras={availableCameras}
+                  activeId={currentCamera}
+                  onSelect={(id) => {
+                    setCurrentCamera(id);
+                    onCameraSwitch?.(id);
+                  }}
+                  isOpen={showCameraSelector}
+                  onClose={() => setShowCameraSelector(false)}
+                />
               </div>
-              
-              {/* Resolution */}
-              <div>
-                <label className="block text-xs text-[var(--apex-text-muted)] mb-2 font-medium">
-                  <CameraIcon className="inline w-3 h-3 mr-1" />
-                  Resolution
-                </label>
-                <select
-                  value={camera.resolution}
-                  onChange={e => setCameraSettings({ resolution: e.target.value as 'max' | '4k' | '2k' | '1080p' | '720p' })}
-                  className="w-full"
+
+              {/* Mirror Toggle */}
+              <motion.button
+                className={`p-3 backdrop-blur-md rounded-xl border border-white/10 transition-colors ${
+                  isMirrored
+                    ? 'bg-indigo-500/30 text-indigo-300 border-indigo-500/30'
+                    : 'bg-[#1a1a25]/80 text-white/70 hover:text-white'
+                }`}
+                variants={buttonHoverVariants}
+                initial="rest"
+                whileHover="hover"
+                whileTap="tap"
+                onClick={() => setIsMirrored(!isMirrored)}
+                aria-label={isMirrored ? 'Desactivar espejo' : 'Activar espejo'}
+              >
+                <Aperture className="w-5 h-5" />
+              </motion.button>
+            </div>
+
+            {/* Center - Capture Button */}
+            <motion.button
+              className="relative group"
+              variants={captureButtonVariants}
+              initial="rest"
+              whileHover="hover"
+              whileTap="tap"
+              onClick={handleCaptureClick}
+              aria-label={currentTimer > 0 ? `Capturar con temporizador ${currentTimer}s` : 'Capturar foto'}
+            >
+              <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-lg">
+                <div className="w-16 h-16 rounded-full border-4 border-[#0a0a0f] flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-[#0a0a0f] group-hover:bg-indigo-500 transition-colors" />
+                </div>
+              </div>
+              {currentTimer > 0 && (
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">{currentTimer}</span>
+                </div>
+              )}
+            </motion.button>
+
+            {/* Right Controls */}
+            <div className="flex items-center gap-3">
+              {/* Timer Selector */}
+              <div className="flex items-center gap-1 p-1 bg-[#1a1a25]/80 backdrop-blur-md rounded-xl border border-white/10">
+                {TIMER_OPTIONS.map((timer) => (
+                  <motion.button
+                    key={timer}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      currentTimer === timer
+                        ? 'bg-indigo-500 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                    onClick={() => {
+                      setCurrentTimer(timer);
+                      onTimerChange?.(timer);
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {timer === 0 ? 'Off' : `${timer}s`}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Resolution Selector */}
+              <div className="relative">
+                <motion.button
+                  className="p-3 bg-[#1a1a25]/80 backdrop-blur-md rounded-xl border border-white/10 text-white/70 hover:text-white hover:bg-[#222230]/80 transition-colors"
+                  variants={buttonHoverVariants}
+                  initial="rest"
+                  whileHover="hover"
+                  whileTap="tap"
+                  onClick={() => setShowResolutionSelector(!showResolutionSelector)}
+                  aria-label="Cambiar resolución"
                 >
-                  {resolutions.map(r => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
+                  <Settings2 className="w-5 h-5" />
+                </motion.button>
+                <ResolutionSelector
+                  current={currentResolution}
+                  onChange={(res) => {
+                    setCurrentResolution(res);
+                    onResolutionChange?.(res);
+                  }}
+                  isOpen={showResolutionSelector}
+                  onClose={() => setShowResolutionSelector(false)}
+                />
               </div>
             </div>
           </div>
-        )}
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
-}
+};
+
+export default Camera;
+
+

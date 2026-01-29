@@ -9,7 +9,6 @@
  */
 
 import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
 import type { 
   AdjustmentSettings, 
   UIState, 
@@ -156,8 +155,7 @@ const defaultCamera: CameraSettings = {
   bracketingEV: 0,
 };
 
-export const useImageStore = create<ImageStore>()(
-  subscribeWithSelector((set, get) => ({
+export const useImageStore = create<ImageStore>()((set, get) => ({
     // Image state
     image: {
       original: null,
@@ -303,5 +301,5 @@ export const useImageStore = create<ImageStore>()(
     
     canUndo: () => get().historyIndex > 0,
     canRedo: () => get().historyIndex < get().history.length - 1,
-  }))
-);
+  }));
+

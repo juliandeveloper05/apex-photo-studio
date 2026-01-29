@@ -497,3 +497,70 @@ export const DEFAULT_UI_STATE: UIState = {
   gridType: 'none',
   activePanel: 'basic',
 };
+
+// ============================================================================
+// KIMI INTEGRATION TYPES
+// ============================================================================
+
+/**
+ * View mode for app navigation
+ */
+export type ViewMode = 'camera' | 'editor';
+
+/**
+ * Grid overlay types for composition guides
+ */
+export type GridOverlayType = 'none' | 'rule-thirds' | 'golden' | 'grid' | 'diagonal';
+
+/**
+ * Adjustment category for grouping controls
+ */
+export type AdjustmentCategory = 'exposure' | 'color' | 'detail' | 'hsl';
+
+/**
+ * Toast notification interface
+ */
+export interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  message: string;
+  duration?: number;
+}
+
+/**
+ * HSL Channel with lightness (Kimi compatibility)
+ */
+export interface HSLChannelWithLightness {
+  hue: number;
+  saturation: number;
+  lightness: number;
+}
+
+/**
+ * Adjustment values for Kimi store
+ */
+export interface AdjustmentValues {
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  whites: number;
+  blacks: number;
+  temperature: number;
+  tint: number;
+  saturation: number;
+  vibrance: number;
+  clarity: number;
+  sharpness: number;
+  noiseReduction: number;
+  hsl: {
+    red: HSLChannelWithLightness;
+    orange: HSLChannelWithLightness;
+    yellow: HSLChannelWithLightness;
+    green: HSLChannelWithLightness;
+    aqua: HSLChannelWithLightness;
+    blue: HSLChannelWithLightness;
+    purple: HSLChannelWithLightness;
+    magenta: HSLChannelWithLightness;
+  };
+}

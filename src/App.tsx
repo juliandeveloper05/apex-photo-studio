@@ -3,12 +3,6 @@
  * 
  * Professional photo capture and editing application
  * with immersive 3D background and premium glassmorphism interface
- * 
- * Inspired by:
- * - Adobe After Effects (futuristic interface)
- * - Figma (glassmorphism modern)
- * - Spline (3D interactivo)
- * - Apple Vision Pro (spatial computing)
  */
 
 import { useEffect } from 'react';
@@ -17,7 +11,8 @@ import { Editor } from '@/components/Editor';
 import { Toolbar } from '@/components/Toolbar';
 import { AdjustmentsPanel } from '@/components/AdjustmentsPanel';
 import { Histogram } from '@/components/Histogram';
-import { AnimatedBackground3D } from '@/components/AnimatedBackground3D';
+// AnimatedBackground3D temporarily disabled - causes rendering issues
+// import { AnimatedBackground3D } from '@/components/AnimatedBackground3D';
 import { StatsPanel } from '@/components/StatsPanel';
 import { FloatingButton } from '@/components/FloatingButton';
 import { useImageStore } from '@/hooks/useImageStore';
@@ -47,7 +42,6 @@ function App() {
         } else if (e.key === 'e' || e.key === 'E') {
           setUIState({ mode: 'editor' });
         } else if (e.key === 'g' || e.key === 'G') {
-          // Cycle through grids
           const grids = ['none', 'thirds', 'golden', 'diagonal', 'center'] as const;
           const idx = grids.indexOf(ui.gridType);
           setUIState({ gridType: grids[(idx + 1) % grids.length] });
@@ -56,7 +50,6 @@ function App() {
         } else if (e.key === 'h' || e.key === 'H') {
           setUIState({ showHistogram: !ui.showHistogram });
         } else if (e.key === '\\') {
-          // Toggle comparison
           setUIState({ 
             comparisonMode: ui.comparisonMode === 'off' ? 'split-vertical' : 'off' 
           });
@@ -77,10 +70,8 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [ui, setUIState, undo, redo, canUndo, canRedo]);
 
-  // Check if image is loaded
   const imageLoaded = !!(image.processed || image.original);
 
-  // Toggle handlers for floating buttons
   const toggleGrid = () => {
     const grids = ['none', 'thirds', 'golden', 'diagonal', 'center'] as const;
     const idx = grids.indexOf(ui.gridType);
@@ -99,9 +90,6 @@ function App() {
   
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black text-white">
-      {/* 3D Animated Background */}
-      <AnimatedBackground3D />
-      
       {/* Main UI Layer */}
       <div className="relative z-10 h-full flex flex-col">
         {/* Top Toolbar */}
@@ -117,7 +105,7 @@ function App() {
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Main View */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {ui.mode === 'camera' ? <Camera /> : <Editor />}
           </div>
           
@@ -153,7 +141,6 @@ function App() {
               APEX Photo Studio
             </span>
             
-            {/* Keyboard shortcuts hint */}
             <div className="hidden sm:flex items-center gap-1 text-[10px] text-gray-500">
               <Keyboard className="w-3 h-3 mr-1" />
               <span className="font-mono">C</span><span className="mx-0.5 text-gray-600">Camera</span>
@@ -179,27 +166,27 @@ function App() {
             icon={Grid3X3}
             label="Toggle Grid"
             onClick={toggleGrid}
-            position={{ bottom: '60px', right: '24px' }}
+            position={{ bottom: '60px', left: '24px' }}
             color="#0ea5e9"
           />
           <FloatingButton
             icon={Eye}
             label="Zebras"
             onClick={toggleZebras}
-            position={{ bottom: '130px', right: '24px' }}
+            position={{ bottom: '130px', left: '24px' }}
             color="#f59e0b"
           />
           <FloatingButton
             icon={SplitSquareVertical}
             label="Compare"
             onClick={toggleCompare}
-            position={{ bottom: '200px', right: '24px' }}
+            position={{ bottom: '200px', left: '24px' }}
             color="#7c3aed"
           />
           <FloatingButton
             icon={Settings}
             label="Settings"
-            position={{ bottom: '270px', right: '24px' }}
+            position={{ bottom: '270px', left: '24px' }}
             color="#10b981"
           />
         </>

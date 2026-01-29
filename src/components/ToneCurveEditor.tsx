@@ -1,409 +1,845 @@
 /**
- * APEX Photo Studio - Tone Curve Editor Component
- * 
- * Interactive SVG-based curve editor with:
- * - Click to add control points
- * - Drag to adjust points
- * - Double-click to remove points
- * - RGB Master + individual channel curves
- * - Histogram underlay
+ * APEX Photo Studio v1.1.0 - ToneCurveEditor Component
+ * Editor de curva de tonos con spline cúbico interactivo y histograma overlay.
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { Spline, RotateCcw } from 'lucide-react';
-import { useImageStore } from '@/hooks/useImageStore';
-import type { CurvePoint } from '@/types';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  RotateCcw,
+  Copy,
+  Clipboard,
+  Save,
+  ChevronDown,
+  Grid3x3,
+  Eye,
+  EyeOff,
+  Info
+} from 'lucide-react';
 
-type CurveChannel = 'rgb' | 'red' | 'green' | 'blue';
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 
-const CHANNEL_COLORS = {
-  rgb: '#ffffff',
-  red: '#ef4444',
-  green: '#22c55e',
-  blue: '#3b82f6',
-};
-
-const CURVE_SIZE = 200;
-const PADDING = 8;
-const POINT_RADIUS = 6;
-
-/**
- * Cubic spline interpolation for smooth curve rendering
- */
-function interpolateCurve(points: CurvePoint[]): string {
-  if (points.length < 2) return '';
-  
-  const sorted = [...points].sort((a, b) => a.x - b.x);
-  const pathPoints: string[] = [];
-  
-  // Generate enough points for smooth curve
-  for (let x = 0; x <= 255; x += 2) {
-    const y = cubicInterpolate(sorted, x);
-    const px = (x / 255) * CURVE_SIZE;
-    const py = CURVE_SIZE - (y / 255) * CURVE_SIZE;
-    
-    if (x === 0) {
-      pathPoints.push(`M ${px + PADDING} ${py + PADDING}`);
-    } else {
-      pathPoints.push(`L ${px + PADDING} ${py + PADDING}`);
-    }
-  }
-  
-  return pathPoints.join(' ');
+export interface CurvePoint {
+  x: number;
+  y: number;
+  id: string;
 }
 
-function cubicInterpolate(points: CurvePoint[], x: number): number {
-  if (x <= points[0].x) return points[0].y;
-  if (x >= points[points.length - 1].x) return points[points.length - 1].y;
-  
-  let i = 0;
-  for (i = 0; i < points.length - 1; i++) {
-    if (x >= points[i].x && x < points[i + 1].x) break;
+export type CurveChannel = 'rgb' | 'red' | 'green' | 'blue';
+
+export interface CurvePreset {
+  id: string;
+  name: string;
+  channel: CurveChannel;
+  points: CurvePoint[];
+}
+
+export interface ToneCurveEditorProps {
+  /** Puntos de la curva */
+  curve: CurvePoint[];
+  /** Datos del histograma */
+  histogramData?: number[];
+  /** Canal activo */
+  channel?: CurveChannel;
+  /** Tamaño de la grid */
+  gridSize?: number;
+  /** Callback al cambiar curva */
+  onCurveChange: (points: CurvePoint[]) => void;
+  /** Callback al cambiar canal */
+  onChannelChange?: (channel: CurveChannel) => void;
+  /** Presets disponibles */
+  presets?: CurvePreset[];
+  /** Callback al aplicar preset */
+  onApplyPreset?: (preset: CurvePreset) => void;
+  /** Callback al guardar preset */
+  onSavePreset?: (name: string) => void;
+  /** Clase CSS adicional */
+  className?: string;
+}
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const CANVAS_SIZE = 256;
+const PADDING = 20;
+const GRAPH_SIZE = CANVAS_SIZE - PADDING * 2;
+
+const CHANNELS: { id: CurveChannel; label: string; color: string }[] = [
+  { id: 'rgb', label: 'RGB', color: '#ffffff' },
+  { id: 'red', label: 'Rojo', color: '#ef4444' },
+  { id: 'green', label: 'Verde', color: '#22c55e' },
+  { id: 'blue', label: 'Azul', color: '#3b82f6' }
+];
+
+const DEFAULT_PRESETS: CurvePreset[] = [
+  {
+    id: 'linear',
+    name: 'Lineal',
+    channel: 'rgb',
+    points: [
+      { x: 0, y: 0, id: 'p0' },
+      { x: 255, y: 255, id: 'p1' }
+    ]
+  },
+  {
+    id: 'contrast',
+    name: 'Alto Contraste',
+    channel: 'rgb',
+    points: [
+      { x: 0, y: 0, id: 'p0' },
+      { x: 64, y: 32, id: 'p1' },
+      { x: 192, y: 224, id: 'p2' },
+      { x: 255, y: 255, id: 'p3' }
+    ]
+  },
+  {
+    id: 'fade',
+    name: 'Matte Fade',
+    channel: 'rgb',
+    points: [
+      { x: 0, y: 32, id: 'p0' },
+      { x: 64, y: 64, id: 'p1' },
+      { x: 128, y: 128, id: 'p2' },
+      { x: 192, y: 192, id: 'p3' },
+      { x: 255, y: 224, id: 'p4' }
+    ]
+  },
+  {
+    id: 'crush',
+    name: 'Shadow Crush',
+    channel: 'rgb',
+    points: [
+      { x: 0, y: 0, id: 'p0' },
+      { x: 32, y: 0, id: 'p1' },
+      { x: 128, y: 128, id: 'p2' },
+      { x: 255, y: 255, id: 'p3' }
+    ]
   }
-  
-  const p0 = points[Math.max(0, i - 1)];
-  const p1 = points[i];
-  const p2 = points[i + 1];
-  const p3 = points[Math.min(points.length - 1, i + 2)];
-  
-  const t = (x - p1.x) / (p2.x - p1.x);
+];
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Calculate cubic spline interpolation
+ * Uses Catmull-Rom spline for smooth curves through points
+ */
+const calculateSpline = (points: CurvePoint[]): string => {
+  if (points.length < 2) return '';
+
+  // Sort points by x
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+
+  // Generate path
+  let path = `M ${sorted[0].x} ${255 - sorted[0].y}`;
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const p0 = sorted[Math.max(0, i - 1)];
+    const p1 = sorted[i];
+    const p2 = sorted[i + 1];
+    const p3 = sorted[Math.min(sorted.length - 1, i + 2)];
+
+    // Catmull-Rom to Bezier conversion
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    path += ` C ${cp1x} ${255 - cp1y}, ${cp2x} ${255 - cp2y}, ${p2.x} ${255 - p2.y}`;
+  }
+
+  return path;
+};
+
+/**
+ * Generate smooth curve using polynomial interpolation
+ */
+const calculateSmoothCurve = (points: CurvePoint[]): string => {
+  if (points.length < 2) return '';
+
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+  const segments = 100;
+  let path = '';
+
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const x = t * 255;
+    const y = interpolateY(x, sorted);
+
+    if (i === 0) {
+      path = `M ${x} ${255 - y}`;
+    } else {
+      path += ` L ${x} ${255 - y}`;
+    }
+  }
+
+  return path;
+};
+
+/**
+ * Interpolate Y value for given X using cubic interpolation
+ */
+const interpolateY = (x: number, points: CurvePoint[]): number => {
+  // Find surrounding points
+  let i0 = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    if (x >= points[i].x && x <= points[i + 1].x) {
+      i0 = i;
+      break;
+    }
+  }
+
+  const p0 = points[Math.max(0, i0 - 1)];
+  const p1 = points[i0];
+  const p2 = points[Math.min(points.length - 1, i0 + 1)];
+  const p3 = points[Math.min(points.length - 1, i0 + 2)];
+
+  // Normalize t between p1 and p2
+  const t = (x - p1.x) / (p2.x - p1.x || 1);
+
+  // Catmull-Rom interpolation
   const t2 = t * t;
   const t3 = t2 * t;
-  
+
   const y = 0.5 * (
     (2 * p1.y) +
     (-p0.y + p2.y) * t +
     (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
     (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
   );
-  
+
   return Math.max(0, Math.min(255, y));
-}
+};
 
-interface CurveEditorSVGProps {
-  points: CurvePoint[];
-  color: string;
-  onPointsChange: (points: CurvePoint[]) => void;
-  histogram?: number[];
-}
+// ============================================================================
+// ANIMATION VARIANTS
+// ============================================================================
 
-function CurveEditorSVG({ points, color, onPointsChange, histogram }: CurveEditorSVGProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  
-  const curvePath = useMemo(() => interpolateCurve(points), [points]);
-  
-  const toSvgCoords = useCallback((clientX: number, clientY: number) => {
-    if (!svgRef.current) return { x: 0, y: 0 };
-    const rect = svgRef.current.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(255, ((clientX - rect.left - PADDING) / CURVE_SIZE) * 255)),
-      y: Math.max(0, Math.min(255, (1 - (clientY - rect.top - PADDING) / CURVE_SIZE) * 255)),
-    };
-  }, []);
-  
-  const handleMouseDown = useCallback((e: React.MouseEvent, index: number) => {
-    e.preventDefault();
-    // Don't allow dragging first or last point horizontally
-    setDraggingIndex(index);
-  }, []);
-  
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (draggingIndex === null) return;
-    
-    const coords = toSvgCoords(e.clientX, e.clientY);
-    const newPoints = [...points];
-    
-    // First and last points can only move vertically
-    if (draggingIndex === 0) {
-      newPoints[0] = { x: 0, y: Math.round(coords.y) };
-    } else if (draggingIndex === points.length - 1) {
-      newPoints[draggingIndex] = { x: 255, y: Math.round(coords.y) };
-    } else {
-      // Constrain to between neighbors
-      const minX = points[draggingIndex - 1].x + 1;
-      const maxX = points[draggingIndex + 1].x - 1;
-      newPoints[draggingIndex] = {
-        x: Math.round(Math.max(minX, Math.min(maxX, coords.x))),
-        y: Math.round(coords.y),
-      };
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.28,
+      ease: 'easeOut' as const,
+      staggerChildren: 0.03
     }
-    
-    onPointsChange(newPoints);
-  }, [draggingIndex, points, toSvgCoords, onPointsChange]);
-  
-  const handleMouseUp = useCallback(() => {
-    setDraggingIndex(null);
-  }, []);
-  
-  const handleDoubleClick = useCallback((index: number) => {
-    // Can't remove first or last point
-    if (index === 0 || index === points.length - 1) return;
-    const newPoints = points.filter((_, i) => i !== index);
-    onPointsChange(newPoints);
-  }, [points, onPointsChange]);
-  
-  const handleSvgClick = useCallback((e: React.MouseEvent) => {
-    if (draggingIndex !== null) return;
-    
-    const coords = toSvgCoords(e.clientX, e.clientY);
-    
-    // Don't add if too close to existing point
-    const tooClose = points.some(p => 
-      Math.abs(p.x - coords.x) < 10 && Math.abs(p.y - coords.y) < 10
-    );
-    if (tooClose) return;
-    
-    const newPoint = { x: Math.round(coords.x), y: Math.round(coords.y) };
-    const newPoints = [...points, newPoint].sort((a, b) => a.x - b.x);
-    onPointsChange(newPoints);
-  }, [draggingIndex, points, toSvgCoords, onPointsChange]);
-  
-  const svgSize = CURVE_SIZE + PADDING * 2;
-  
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+interface HistogramOverlayProps {
+  data: number[];
+  width: number;
+  height: number;
+}
+
+const HistogramOverlay: React.FC<HistogramOverlayProps> = ({ data, width, height }) => {
+  const maxValue = Math.max(...data, 1);
+  const barWidth = width / data.length;
+
   return (
-    <svg
-      ref={svgRef}
-      width={svgSize}
-      height={svgSize}
-      className="bg-[var(--apex-bg-dark)] rounded-lg cursor-crosshair"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onClick={handleSvgClick}
-    >
-      {/* Histogram underlay */}
-      {histogram && (
-        <g opacity="0.3">
-          {histogram.map((value, i) => {
-            const x = (i / 255) * CURVE_SIZE + PADDING;
-            const height = (value / Math.max(...histogram)) * CURVE_SIZE * 0.5;
-            return (
-              <rect
-                key={i}
-                x={x}
-                y={svgSize - PADDING - height}
-                width={CURVE_SIZE / 256 + 0.5}
-                height={height}
-                fill={color}
-              />
-            );
-          })}
-        </g>
-      )}
-      
-      {/* Grid lines */}
-      <g stroke="rgba(255,255,255,0.1)" strokeWidth="1">
-        {[0.25, 0.5, 0.75].map(t => (
-          <g key={t}>
-            <line
-              x1={PADDING}
-              y1={PADDING + t * CURVE_SIZE}
-              x2={PADDING + CURVE_SIZE}
-              y2={PADDING + t * CURVE_SIZE}
-            />
-            <line
-              x1={PADDING + t * CURVE_SIZE}
-              y1={PADDING}
-              x2={PADDING + t * CURVE_SIZE}
-              y2={PADDING + CURVE_SIZE}
-            />
-          </g>
-        ))}
-      </g>
-      
-      {/* Diagonal reference line */}
-      <line
-        x1={PADDING}
-        y1={PADDING + CURVE_SIZE}
-        x2={PADDING + CURVE_SIZE}
-        y2={PADDING}
-        stroke="rgba(255,255,255,0.2)"
-        strokeWidth="1"
-        strokeDasharray="4,4"
-      />
-      
-      {/* Curve */}
-      <path
-        d={curvePath}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      
-      {/* Control points */}
-      {points.map((point, index) => {
-        const cx = (point.x / 255) * CURVE_SIZE + PADDING;
-        const cy = CURVE_SIZE - (point.y / 255) * CURVE_SIZE + PADDING;
-        const isHovered = hoverIndex === index;
-        const isDragging = draggingIndex === index;
-        
+    <g opacity="0.3">
+      {data.map((value, i) => {
+        const barHeight = (value / maxValue) * height * 0.5;
         return (
-          <g key={index}>
-            <circle
-              cx={cx}
-              cy={cy}
-              r={POINT_RADIUS + (isHovered || isDragging ? 2 : 0)}
-              fill={isDragging ? color : 'var(--apex-bg-elevated)'}
-              stroke={color}
-              strokeWidth="2"
-              className="cursor-grab active:cursor-grabbing transition-all"
-              onMouseDown={e => handleMouseDown(e, index)}
-              onMouseEnter={() => setHoverIndex(index)}
-              onMouseLeave={() => setHoverIndex(null)}
-              onDoubleClick={() => handleDoubleClick(index)}
-            />
-          </g>
+          <rect
+            key={i}
+            x={i * barWidth}
+            y={height - barHeight}
+            width={barWidth - 0.5}
+            height={barHeight}
+            fill="#6366f1"
+          />
         );
       })}
-      
-      {/* Border */}
-      <rect
-        x={PADDING}
-        y={PADDING}
-        width={CURVE_SIZE}
-        height={CURVE_SIZE}
-        fill="none"
-        stroke="rgba(255,255,255,0.1)"
-        strokeWidth="1"
-        rx="2"
-      />
-    </svg>
+    </g>
   );
+};
+
+interface GridOverlayProps {
+  size: number;
+  divisions: number;
 }
 
-export function ToneCurveEditor() {
-  const [activeChannel, setActiveChannel] = useState<CurveChannel>('rgb');
-  const { adjustments, setAdjustments, pushHistory, histogram } = useImageStore();
-  
-  const currentPoints = adjustments.curves[activeChannel];
-  
-  const updatePoints = useCallback((points: CurvePoint[]) => {
-    setAdjustments({
-      curves: {
-        ...adjustments.curves,
-        [activeChannel]: points,
-      },
-    });
-  }, [activeChannel, adjustments.curves, setAdjustments]);
-  
-  const resetChannel = useCallback(() => {
-    setAdjustments({
-      curves: {
-        ...adjustments.curves,
-        [activeChannel]: [{ x: 0, y: 0 }, { x: 255, y: 255 }],
-      },
-    });
-    pushHistory();
-  }, [activeChannel, adjustments.curves, setAdjustments, pushHistory]);
-  
-  const resetAll = useCallback(() => {
-    setAdjustments({
-      curves: {
-        rgb: [{ x: 0, y: 0 }, { x: 255, y: 255 }],
-        red: [{ x: 0, y: 0 }, { x: 255, y: 255 }],
-        green: [{ x: 0, y: 0 }, { x: 255, y: 255 }],
-        blue: [{ x: 0, y: 0 }, { x: 255, y: 255 }],
-      },
-    });
-    pushHistory();
-  }, [setAdjustments, pushHistory]);
-  
-  // Check if curve is non-default
-  const isDefault = (points: CurvePoint[]) => 
-    points.length === 2 && 
-    points[0].x === 0 && points[0].y === 0 &&
-    points[1].x === 255 && points[1].y === 255;
-  
-  const hasChanges = !isDefault(adjustments.curves.rgb) ||
-                     !isDefault(adjustments.curves.red) ||
-                     !isDefault(adjustments.curves.green) ||
-                     !isDefault(adjustments.curves.blue);
-  
-  // Get histogram for current channel
-  const channelHistogram = histogram ? (
-    activeChannel === 'rgb' ? histogram.luminance :
-    activeChannel === 'red' ? histogram.red :
-    activeChannel === 'green' ? histogram.green :
-    histogram.blue
-  ) : undefined;
-  
-  return (
-    <div className="p-3">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Spline className="w-4 h-4 text-[var(--apex-accent)]" />
-          <span className="text-xs font-semibold text-[var(--apex-text-primary)]">Tone Curve</span>
-        </div>
-        {hasChanges && (
-          <button
-            onClick={resetAll}
-            className="p-1 rounded text-[var(--apex-text-dim)] hover:text-[var(--apex-text-secondary)] 
-                       hover:bg-[var(--apex-bg-hover)] transition-all"
-            title="Reset all curves"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-      
-      {/* Channel Selector */}
-      <div className="flex gap-1 mb-3">
-        {(['rgb', 'red', 'green', 'blue'] as CurveChannel[]).map(channel => {
-          const isActive = channel === activeChannel;
-          const hasValue = !isDefault(adjustments.curves[channel]);
-          
-          return (
-            <button
-              key={channel}
-              onClick={() => setActiveChannel(channel)}
-              className={`flex-1 py-1.5 text-[10px] font-medium uppercase rounded transition-all ${
-                isActive 
-                  ? 'bg-[var(--apex-bg-elevated)] shadow-sm' 
-                  : 'hover:bg-[var(--apex-bg-hover)]'
-              }`}
-              style={{ 
-                color: isActive ? CHANNEL_COLORS[channel] : 'var(--apex-text-muted)',
-                borderBottom: hasValue ? `2px solid ${CHANNEL_COLORS[channel]}` : 'none',
-              }}
-            >
-              {channel.toUpperCase()}
-            </button>
-          );
-        })}
-      </div>
-      
-      {/* Curve Editor */}
-      <div className="flex justify-center">
-        <CurveEditorSVG
-          points={currentPoints}
-          color={CHANNEL_COLORS[activeChannel]}
-          onPointsChange={updatePoints}
-          histogram={channelHistogram}
-        />
-      </div>
-      
-      {/* Current channel reset */}
-      {!isDefault(currentPoints) && (
-        <button
-          onClick={resetChannel}
-          className="mt-2 w-full text-[10px] text-[var(--apex-text-dim)] hover:text-[var(--apex-accent)] 
-                     py-1 transition-colors"
-        >
-          Reset {activeChannel.toUpperCase()} curve
-        </button>
-      )}
-      
-      {/* Instructions */}
-      <div className="mt-3 text-[10px] text-[var(--apex-text-dim)] bg-[var(--apex-bg-dark)] rounded p-2 space-y-1">
-        <div>• <strong>Click</strong> to add control point</div>
-        <div>• <strong>Drag</strong> to adjust point</div>
-        <div>• <strong>Double-click</strong> to remove point</div>
-      </div>
-    </div>
-  );
+const GridOverlay: React.FC<GridOverlayProps> = ({ size, divisions }) => {
+  const step = size / divisions;
+  const lines = [];
+
+  for (let i = 1; i < divisions; i++) {
+    const pos = i * step;
+    lines.push(
+      <line
+        key={`h${i}`}
+        x1={0}
+        y1={pos}
+        x2={size}
+        y2={pos}
+        stroke="rgba(255,255,255,0.1)"
+        strokeWidth="0.5"
+        strokeDasharray="2,2"
+      />
+    );
+    lines.push(
+      <line
+        key={`v${i}`}
+        x1={pos}
+        y1={0}
+        x2={pos}
+        y2={size}
+        stroke="rgba(255,255,255,0.1)"
+        strokeWidth="0.5"
+        strokeDasharray="2,2"
+      />
+    );
+  }
+
+  return <g>{lines}</g>;
+};
+
+interface PresetDropdownProps {
+  presets: CurvePreset[];
+  onSelect: (preset: CurvePreset) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  currentChannel: CurveChannel;
 }
+
+const PresetDropdown: React.FC<PresetDropdownProps> = ({
+  presets,
+  onSelect,
+  isOpen,
+  onClose,
+  currentChannel
+}) => {
+  const filteredPresets = presets.filter(p => p.channel === currentChannel || p.channel === 'rgb');
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[840]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="absolute top-full left-0 mt-2 z-[850] min-w-[200px]"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+          >
+            <div className="bg-[#1a1a25]/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+              <div className="px-3 py-2 border-b border-white/10">
+                <p className="text-xs font-medium text-white/50">Presets</p>
+              </div>
+              <div className="p-1 max-h-[200px] overflow-y-auto">
+                {filteredPresets.map((preset, index) => (
+                  <motion.button
+                    key={preset.id}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      onSelect(preset);
+                      onClose();
+                    }}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                  >
+                    <div className="w-8 h-8 bg-white/5 rounded flex items-center justify-center">
+                      <svg width="20" height="20" viewBox="0 0 256 256">
+                        <path
+                          d={calculateSpline(preset.points)}
+                          fill="none"
+                          stroke={CHANNELS.find(c => c.id === preset.channel)?.color || '#fff'}
+                          strokeWidth="2"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-white/80">{preset.name}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+export const ToneCurveEditor: React.FC<ToneCurveEditorProps> = ({
+  curve,
+  histogramData = [],
+  channel = 'rgb',
+  gridSize = 4,
+  onCurveChange,
+  onChannelChange,
+  presets = DEFAULT_PRESETS,
+  onApplyPreset,
+  onSavePreset,
+  className = ''
+}) => {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [currentChannel, setCurrentChannel] = useState<CurveChannel>(channel);
+  const [points, setPoints] = useState<CurvePoint[]>(curve);
+  const [draggedPoint, setDraggedPoint] = useState<string | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<string | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showHistogram, setShowHistogram] = useState(true);
+  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+
+  // Sync with props
+  useEffect(() => {
+    setCurrentChannel(channel);
+  }, [channel]);
+
+  useEffect(() => {
+    setPoints(curve);
+  }, [curve]);
+
+  // Generate curve path
+  const curvePath = useMemo(() => calculateSpline(points), [points]);
+
+  // Get channel color
+  const channelColor = useMemo(() => {
+    return CHANNELS.find(c => c.id === currentChannel)?.color || '#ffffff';
+  }, [currentChannel]);
+
+  // Coordinate conversion
+  const screenToCurve = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleX = 256 / rect.width;
+    const scaleY = 256 / rect.height;
+
+    const x = (clientX - rect.left) * scaleX;
+    const y = 255 - (clientY - rect.top) * scaleY;
+
+    return {
+      x: Math.max(0, Math.min(255, x)),
+      y: Math.max(0, Math.min(255, y))
+    };
+  }, []);
+
+  // Add point
+  const addPoint = useCallback((x: number, y: number) => {
+    const newPoint: CurvePoint = {
+      x: Math.round(x),
+      y: Math.round(y),
+      id: `p${Date.now()}`
+    };
+    const newPoints = [...points, newPoint].sort((a, b) => a.x - b.x);
+    setPoints(newPoints);
+    onCurveChange(newPoints);
+  }, [points, onCurveChange]);
+
+  // Remove point
+  const removePoint = useCallback((id: string) => {
+    // Don't remove if only 2 points left
+    if (points.length <= 2) return;
+
+    const newPoints = points.filter(p => p.id !== id);
+    setPoints(newPoints);
+    onCurveChange(newPoints);
+  }, [points, onCurveChange]);
+
+  // Update point position
+  const updatePoint = useCallback((id: string, x: number, y: number) => {
+    const newPoints = points.map(p =>
+      p.id === id ? { ...p, x: Math.round(x), y: Math.round(y) } : p
+    ).sort((a, b) => a.x - b.x);
+
+    setPoints(newPoints);
+    onCurveChange(newPoints);
+  }, [points, onCurveChange]);
+
+  // Handle mouse events
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const { x, y } = screenToCurve(e.clientX, e.clientY);
+
+    // Check if clicking near existing point
+    const clickThreshold = 10;
+    const nearPoint = points.find(p =>
+      Math.abs(p.x - x) < clickThreshold && Math.abs(p.y - y) < clickThreshold
+    );
+
+    if (nearPoint) {
+      // Right click to remove
+      if (e.button === 2) {
+        e.preventDefault();
+        removePoint(nearPoint.id);
+        return;
+      }
+      setDraggedPoint(nearPoint.id);
+    } else if (e.button === 0) {
+      // Add new point on left click
+      addPoint(x, y);
+      // Start dragging the new point
+      const newPoint = points.find(p => Math.abs(p.x - x) < 1 && Math.abs(p.y - y) < 1);
+      if (newPoint) {
+        setDraggedPoint(newPoint.id);
+      }
+    }
+  }, [screenToCurve, points, addPoint, removePoint]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!draggedPoint) return;
+
+    const { x, y } = screenToCurve(e.clientX, e.clientY);
+    updatePoint(draggedPoint, x, y);
+  }, [draggedPoint, screenToCurve, updatePoint]);
+
+  const handleMouseUp = useCallback(() => {
+    setDraggedPoint(null);
+  }, []);
+
+  // Reset curve
+  const resetCurve = useCallback(() => {
+    const defaultPoints: CurvePoint[] = [
+      { x: 0, y: 0, id: 'start' },
+      { x: 255, y: 255, id: 'end' }
+    ];
+    setPoints(defaultPoints);
+    onCurveChange(defaultPoints);
+  }, [onCurveChange]);
+
+  // Apply preset
+  const applyPreset = useCallback((preset: CurvePreset) => {
+    const newPoints = preset.points.map((p, i) => ({
+      ...p,
+      id: `preset_${preset.id}_${i}`
+    }));
+    setPoints(newPoints);
+    onCurveChange(newPoints);
+    onApplyPreset?.(preset);
+  }, [onCurveChange, onApplyPreset]);
+
+  // Save preset
+  const savePreset = useCallback(() => {
+    if (!presetName.trim()) return;
+    onSavePreset?.(presetName);
+    setPresetName('');
+    setShowSaveDialog(false);
+  }, [presetName, onSavePreset]);
+
+  // Handle channel change
+  const handleChannelChange = useCallback((newChannel: CurveChannel) => {
+    setCurrentChannel(newChannel);
+    onChannelChange?.(newChannel);
+  }, [onChannelChange]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (hoveredPoint && points.length > 2) {
+          removePoint(hoveredPoint);
+        }
+      } else if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        resetCurve();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hoveredPoint, points.length, removePoint, resetCurve]);
+
+  return (
+    <motion.div
+      className={`w-full bg-[#12121a]/95 backdrop-blur-xl rounded-xl border border-white/5 overflow-hidden ${className}`}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      role="application"
+      aria-label="Editor de curva de tonos"
+    >
+      {/* Header */}
+      <motion.div
+        className="flex items-center justify-between p-4 border-b border-white/5"
+        variants={itemVariants}
+      >
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-white/90">Curva de Tonos</h3>
+          <div className="group relative">
+            <Info className="w-4 h-4 text-white/40 cursor-help" />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#1a1a25] rounded-lg text-xs text-white/70 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 w-48">
+              Click para agregar punto. Arrastra para mover. Click derecho o Delete para eliminar.
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Channel Selector */}
+          <div className="flex items-center p-0.5 bg-black/30 rounded-lg">
+            {CHANNELS.map((ch) => (
+              <motion.button
+                key={ch.id}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  currentChannel === ch.id
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/50 hover:text-white/70'
+                }`}
+                onClick={() => handleChannelChange(ch.id)}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span style={{ color: currentChannel === ch.id ? ch.color : undefined }}>
+                  {ch.label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Grid Toggle */}
+          <motion.button
+            className={`p-2 rounded-lg transition-colors ${
+              showGrid ? 'text-indigo-400 bg-indigo-500/20' : 'text-white/50 hover:text-white/70'
+            }`}
+            onClick={() => setShowGrid(!showGrid)}
+            whileTap={{ scale: 0.95 }}
+            title="Toggle grid"
+          >
+            <Grid3x3 className="w-4 h-4" />
+          </motion.button>
+
+          {/* Histogram Toggle */}
+          <motion.button
+            className={`p-2 rounded-lg transition-colors ${
+              showHistogram ? 'text-indigo-400 bg-indigo-500/20' : 'text-white/50 hover:text-white/70'
+            }`}
+            onClick={() => setShowHistogram(!showHistogram)}
+            whileTap={{ scale: 0.95 }}
+            title="Toggle histogram"
+          >
+            {showHistogram ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          </motion.button>
+
+          {/* Presets */}
+          <div className="relative">
+            <motion.button
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+              onClick={() => setShowPresetDropdown(!showPresetDropdown)}
+              whileTap={{ scale: 0.95 }}
+            >
+              Presets
+              <ChevronDown className="w-3 h-3" />
+            </motion.button>
+            <PresetDropdown
+              presets={presets}
+              onSelect={applyPreset}
+              isOpen={showPresetDropdown}
+              onClose={() => setShowPresetDropdown(false)}
+              currentChannel={currentChannel}
+            />
+          </div>
+
+          {/* Reset */}
+          <motion.button
+            className="p-2 text-white/50 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+            onClick={resetCurve}
+            whileTap={{ scale: 0.95 }}
+            title="Reset curve (Ctrl+R)"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Curve Canvas */}
+      <motion.div
+        className="relative p-4"
+        variants={itemVariants}
+      >
+        <div className="relative aspect-square max-w-[300px] mx-auto">
+          {/* Background gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-lg" />
+
+          {/* SVG Canvas */}
+          <svg
+            ref={svgRef}
+            className="absolute inset-0 w-full h-full cursor-crosshair"
+            viewBox="0 0 256 256"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {/* Histogram */}
+            {showHistogram && histogramData.length > 0 && (
+              <HistogramOverlay data={histogramData} width={256} height={256} />
+            )}
+
+            {/* Grid */}
+            {showGrid && <GridOverlay size={256} divisions={gridSize} />}
+
+            {/* Diagonal reference line */}
+            <line
+              x1="0"
+              y1="256"
+              x2="256"
+              y2="0"
+              stroke="rgba(255,255,255,0.2)"
+              strokeWidth="1"
+              strokeDasharray="4,4"
+            />
+
+            {/* Curve */}
+            <motion.path
+              d={curvePath}
+              fill="none"
+              stroke={channelColor}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                filter: 'drop-shadow(0 0 4px ' + channelColor + '40)'
+              }}
+            />
+
+            {/* Points */}
+            {points.map((point) => (
+              <motion.g
+                key={point.id}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                onMouseEnter={() => setHoveredPoint(point.id)}
+                onMouseLeave={() => setHoveredPoint(null)}
+              >
+                {/* Point glow */}
+                <circle
+                  cx={point.x}
+                  cy={255 - point.y}
+                  r={hoveredPoint === point.id ? 12 : 8}
+                  fill={channelColor}
+                  opacity={0.2}
+                />
+                {/* Point */}
+                <circle
+                  cx={point.x}
+                  cy={255 - point.y}
+                  r={hoveredPoint === point.id ? 6 : 5}
+                  fill="#1a1a25"
+                  stroke={channelColor}
+                  strokeWidth="2"
+                  style={{ cursor: draggedPoint === point.id ? 'grabbing' : 'grab' }}
+                />
+              </motion.g>
+            ))}
+          </svg>
+
+          {/* Labels */}
+          <div className="absolute bottom-1 left-2 text-[10px] text-white/40">Shadows</div>
+          <div className="absolute bottom-1 right-2 text-[10px] text-white/40">Highlights</div>
+          <div className="absolute top-2 left-1 text-[10px] text-white/40 -rotate-90 origin-left">Output</div>
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-white/40">Input</div>
+        </div>
+      </motion.div>
+
+      {/* Footer - Point Info */}
+      <motion.div
+        className="px-4 py-3 border-t border-white/5 flex items-center justify-between"
+        variants={itemVariants}
+      >
+        <div className="flex items-center gap-4 text-xs text-white/50">
+          <span>{points.length} puntos</span>
+          {hoveredPoint && (
+            <span className="text-indigo-400">
+              Input: {points.find(p => p.id === hoveredPoint)?.x}, Output: {points.find(p => p.id === hoveredPoint)?.y}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <motion.button
+            className="px-3 py-1.5 text-xs text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            onClick={() => setShowSaveDialog(true)}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Save className="w-3 h-3 inline mr-1" />
+            Guardar preset
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Save Dialog */}
+      <AnimatePresence>
+        {showSaveDialog && (
+          <motion.div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-[#1a1a25] rounded-xl p-4 w-64 border border-white/10"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+            >
+              <h4 className="text-sm font-medium text-white/90 mb-3">Guardar preset</h4>
+              <input
+                type="text"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Nombre del preset"
+                className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-500/50 mb-3"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') savePreset();
+                  if (e.key === 'Escape') setShowSaveDialog(false);
+                }}
+              />
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 px-3 py-2 text-xs text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                  onClick={() => setShowSaveDialog(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="flex-1 px-3 py-2 text-xs text-white bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors"
+                  onClick={savePreset}
+                  disabled={!presetName.trim()}
+                >
+                  Guardar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+export default ToneCurveEditor;
+

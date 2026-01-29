@@ -1,0 +1,393 @@
+/**
+ * APEX Photo Studio v1.1.0 - Design Tokens
+ * Variables CSS para el sistema de diseño.
+ */
+
+:root {
+  /* ==========================================================================
+     COLORS
+     ========================================================================== */
+
+  /* Background */
+  --apex-bg-primary: #0a0a0f;
+  --apex-bg-secondary: #12121a;
+  --apex-bg-tertiary: #1a1a25;
+  --apex-bg-elevated: #222230;
+
+  /* Surface (Glassmorphism) */
+  --apex-surface-glass: rgba(26, 26, 37, 0.72);
+  --apex-surface-glass-hover: rgba(34, 34, 48, 0.85);
+  --apex-surface-glass-active: rgba(42, 42, 58, 0.92);
+
+  /* Accent */
+  --apex-accent-primary: #6366f1;
+  --apex-accent-primary-hover: #818cf8;
+  --apex-accent-secondary: #06b6d4;
+  --apex-accent-tertiary: #f472b6;
+  --apex-accent-success: #22c55e;
+  --apex-accent-warning: #f59e0b;
+  --apex-accent-error: #ef4444;
+
+  /* Text */
+  --apex-text-primary: #f8fafc;
+  --apex-text-secondary: #94a3b8;
+  --apex-text-tertiary: #64748b;
+  --apex-text-disabled: #475569;
+  --apex-text-inverse: #0f172a;
+
+  /* Overlay */
+  --apex-overlay-scrim: rgba(0, 0, 0, 0.65);
+  --apex-overlay-focus: rgba(99, 102, 241, 0.25);
+  --apex-overlay-hover: rgba(255, 255, 255, 0.05);
+
+  /* Histogram */
+  --apex-histogram-shadows: #3b82f6;
+  --apex-histogram-midtones: #22c55e;
+  --apex-histogram-highlights: #f59e0b;
+
+  /* ==========================================================================
+     TYPOGRAPHY
+     ========================================================================== */
+
+  --apex-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --apex-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --apex-font-display: 'SF Pro Display', 'Inter', sans-serif;
+
+  --apex-text-xs: 0.6875rem;
+  --apex-text-sm: 0.8125rem;
+  --apex-text-base: 0.9375rem;
+  --apex-text-lg: 1.0625rem;
+  --apex-text-xl: 1.25rem;
+  --apex-text-2xl: 1.5rem;
+  --apex-text-3xl: 2rem;
+
+  --apex-font-normal: 400;
+  --apex-font-medium: 500;
+  --apex-font-semibold: 600;
+  --apex-font-bold: 700;
+
+  --apex-leading-tight: 1.2;
+  --apex-leading-normal: 1.5;
+  --apex-leading-relaxed: 1.75;
+
+  --apex-tracking-tight: -0.02em;
+  --apex-tracking-normal: 0;
+  --apex-tracking-wide: 0.02em;
+
+  /* ==========================================================================
+     SPACING
+     ========================================================================== */
+
+  --apex-space-0: 0;
+  --apex-space-1: 0.25rem;
+  --apex-space-2: 0.5rem;
+  --apex-space-3: 0.75rem;
+  --apex-space-4: 1rem;
+  --apex-space-5: 1.25rem;
+  --apex-space-6: 1.5rem;
+  --apex-space-8: 2rem;
+  --apex-space-10: 2.5rem;
+  --apex-space-12: 3rem;
+  --apex-space-16: 4rem;
+
+  /* ==========================================================================
+     BORDER RADIUS
+     ========================================================================== */
+
+  --apex-radius-none: 0;
+  --apex-radius-sm: 0.375rem;
+  --apex-radius-md: 0.5rem;
+  --apex-radius-lg: 0.75rem;
+  --apex-radius-xl: 1rem;
+  --apex-radius-2xl: 1.5rem;
+  --apex-radius-full: 9999px;
+
+  /* ==========================================================================
+     SHADOWS
+     ========================================================================== */
+
+  --apex-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --apex-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --apex-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --apex-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --apex-shadow-glow: 0 0 20px rgba(99, 102, 241, 0.35);
+  --apex-shadow-glow-strong: 0 0 30px rgba(99, 102, 241, 0.5);
+  --apex-shadow-rim: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+
+  /* ==========================================================================
+     BLUR
+     ========================================================================== */
+
+  --apex-blur-sm: 4px;
+  --apex-blur-md: 8px;
+  --apex-blur-lg: 12px;
+  --apex-blur-xl: 20px;
+  --apex-blur-2xl: 32px;
+
+  /* ==========================================================================
+     Z-INDEX
+     ========================================================================== */
+
+  --apex-z-base: 0;
+  --apex-z-dropdown: 100;
+  --apex-z-sticky: 200;
+  --apex-z-fixed: 300;
+  --apex-z-modal: 400;
+  --apex-z-popover: 500;
+  --apex-z-tooltip: 600;
+  --apex-z-toast: 700;
+  --apex-z-overlay: 800;
+  --apex-z-countdown: 900;
+
+  /* ==========================================================================
+     TRANSITIONS
+     ========================================================================== */
+
+  --apex-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --apex-transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --apex-transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --apex-transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ==========================================================================
+     EASINGS
+     ========================================================================== */
+
+  --apex-ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --apex-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --apex-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --apex-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --apex-ease-glass: cubic-bezier(0.22, 0.77, 0.3, 1);
+  --apex-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ==========================================================================
+   DARK THEME (Default)
+   ========================================================================== */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   REDUCED MOTION
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   BASE STYLES
+   ========================================================================== */
+
+.apex-app {
+  font-family: var(--apex-font-sans);
+  background-color: var(--apex-bg-primary);
+  color: var(--apex-text-primary);
+  line-height: var(--apex-leading-normal);
+}
+
+/* ==========================================================================
+   GLASSMORPHISM UTILITY
+   ========================================================================== */
+
+.apex-glass {
+  background: var(--apex-surface-glass);
+  backdrop-filter: blur(var(--apex-blur-lg));
+  -webkit-backdrop-filter: blur(var(--apex-blur-lg));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.apex-glass-hover:hover {
+  background: var(--apex-surface-glass-hover);
+}
+
+.apex-glass-active:active {
+  background: var(--apex-surface-glass-active);
+}
+
+/* ==========================================================================
+   FOCUS STYLES (Accessibility)
+   ========================================================================== */
+
+.apex-focus:focus-visible {
+  outline: 2px solid var(--apex-accent-primary);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   SCROLLBAR STYLES
+   ========================================================================== */
+
+.apex-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.apex-scroll::-webkit-scrollbar-track {
+  background: var(--apex-bg-secondary);
+  border-radius: var(--apex-radius-full);
+}
+
+.apex-scroll::-webkit-scrollbar-thumb {
+  background: var(--apex-bg-elevated);
+  border-radius: var(--apex-radius-full);
+}
+
+.apex-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--apex-text-tertiary);
+}
+
+/* ==========================================================================
+   ANIMATION KEYFRAMES
+   ========================================================================== */
+
+@keyframes apex-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes apex-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apex-fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apex-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes apex-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes apex-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes apex-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes apex-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes apex-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+  }
+}
+
+/* ==========================================================================
+   ANIMATION UTILITIES
+   ========================================================================== */
+
+.apex-animate-fade-in {
+  animation: apex-fade-in 280ms var(--apex-ease-glass);
+}
+
+.apex-animate-fade-in-up {
+  animation: apex-fade-in-up 280ms var(--apex-ease-glass);
+}
+
+.apex-animate-scale-in {
+  animation: apex-scale-in 200ms var(--apex-ease-spring);
+}
+
+.apex-animate-slide-in-right {
+  animation: apex-slide-in-right 300ms var(--apex-ease-out);
+}
+
+.apex-animate-pulse {
+  animation: apex-pulse 2s ease-in-out infinite;
+}
+
+.apex-animate-spin {
+  animation: apex-spin 1s linear infinite;
+}
+
+.apex-animate-bounce {
+  animation: apex-bounce 1s ease-in-out infinite;
+}
+
+.apex-animate-glow {
+  animation: apex-glow 2s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   GPU OPTIMIZATION
+   ========================================================================== */
+
+.apex-gpu {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.apex-contain {
+  contain: layout style paint;
+}
+
+.apex-content-visibility {
+  content-visibility: auto;
+}
