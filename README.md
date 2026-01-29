@@ -15,6 +15,9 @@
 
 </div>
 
+> [!WARNING]  
+> **Active Development Notice**: This application is currently undergoing a major migration to a new hardware-accelerated image processing engine. You may encounter bugs or instability during this transition period. We are actively working on resolving these issues and optimizing performance.
+
 ---
 
 ## 🎯 Features
